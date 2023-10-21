@@ -11,8 +11,6 @@ def rotor_conv1d(
     padding: str,
     dilations: Union[int, None] = None,
 ) -> tf.Tensor:
-    # Winograd convolution
-
     # A: [..., S, CI, BI]
     # K: [K, CI, CO, BK]
     # C: [BI, BK, BO]
@@ -55,9 +53,8 @@ def rotor_conv1d(
 
     a_slices = tf.reshape(a_slices, out_shape)
 
-    # TO-DO: Optimize this to not use einsum (since it's slow with ellipses)
     # a_...p,k,ci,bi; k_k,ci,co,bk; c_bi,bk,bo -> y_...p,co,bo
     #   ...a b c  d ,   e c  f  g ,   d  g  h  ->   ...a f  h
-    x = tf.einsum("...abcd,bcfg,dgh->...afh", a_slices, k_blade_values, cayley)
+    x = tf.einsum("...abcd,bcfg,dgh->...afh", algebra, a_slices, k_blade_values, cayley)
 
     return x

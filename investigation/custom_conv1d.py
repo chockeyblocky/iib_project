@@ -1,6 +1,5 @@
 """
-This will train a network using tfga's in-built 1D GA convolution
-layer, using the PoseNet dataset.
+This file is used for testing custom rotor convolution layer.
 """
 
 from keras.models import Model
@@ -13,6 +12,7 @@ import numpy as np
 from keras.applications.inception_v3 import InceptionV3
 from tfga import GeometricAlgebra
 from tfga.layers import TensorToGeometric, GeometricProductConv1D, GeometricToTensor, GeometricSandwichProductDense
+from layers.layers import RotorConv1D
 
 ga = GeometricAlgebra(metric=[1, 1, 1, 1])
 
@@ -30,7 +30,7 @@ x2 = Dropout(0.3)(model.layers[-2].output)
 x2 = Reshape((-1, 1, 8))(x2)
 x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
 
-x2 = GeometricProductConv1D(
+x2 = RotorConv1D(
     ga, filters=2, kernel_size=8, stride=1, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
     activation='relu'
 )(x2)
