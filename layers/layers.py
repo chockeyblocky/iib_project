@@ -185,8 +185,6 @@ class RotorConv1D(GeometricAlgebraLayer):
     def call(self, inputs):
         k_geom = self.algebra.from_tensor(self.kernel, self.blade_indices_kernel)
 
-        print(self.kernel.shape)
-        print(self.kernel_weights.shape)
         inputs = tf.convert_to_tensor(inputs, dtype_hint=tf.float32)
         k_geom = tf.convert_to_tensor(k_geom, dtype_hint=tf.float32)
         weights = tf.convert_to_tensor(self.kernel_weights, dtype_hint=tf.float32)
