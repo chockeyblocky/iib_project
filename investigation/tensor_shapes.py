@@ -1,63 +1,56 @@
 import tensorflow as tf
 from tfga import GeometricAlgebra
 
-a = tf.constant([[0., 1.], [2., 3.], [4., 5.], [6., 7.]])
+a = tf.ones([1, 4, 4, 1, 2])
 
-b = tf.reshape(a, [-1])
+k = tf.ones([3, 3, 1, 5, 2])
 
-print(b)
+kernel_size = k.shape[0]
 
-c = tf.reshape(b, [1, -1, 2])
+a_batch_shape = tf.shape(a)[:-4]
 
-print(c)
+# Reshape a to a 2d image (since that's what the tf op expects)
+# [*, S, 1, CI*BI]
+a_image_shape = tf.concat(
+    [
+        a_batch_shape,
+        tf.shape(a)[-4:-3],
+        [tf.shape(a)[-3], tf.reduce_prod(tf.shape(a)[-2:])],
+    ],
+    axis=0,
+)
 
-d = tf.reshape(c, [1, -1, 1, 2])
+print(a.shape)
+a_image = tf.reshape(a, a_image_shape)
 
-print(d)
+print(a_image)
 
-kernel = tf.constant([0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.])
+print(a_image_shape)
 
-kernel = tf.reshape(kernel, [2, 1, 4, 2])
+sizes = [1, kernel_size, kernel_size, 1]
+strides = [1, 2, 1, 1]
 
-print(kernel)
-
-image_shape = tf.concat([tf.shape(d)[:-3], tf.shape(d)[-3:-2], [1, tf.reduce_prod(tf.shape(d)[-2:])]], axis=0)
-
-print(image_shape)
-
-a_image = tf.reshape(d, image_shape)
-
-sizes = [1, kernel.shape[0], 1, 1]
-strides = [1, 1, 1, 1]
-
-# [*, P, 1, K*CI*BI] where eg. number of patches P = S * K for
+# [*, P1, P2, K*K*CI*BI] where eg. number of patches P = S * K for
 # stride=1 and "SAME", (S-K+1) * K for "VALID", ...
 a_slices = tf.image.extract_patches(
     a_image, sizes=sizes, strides=strides, rates=[1, 1, 1, 1], padding="SAME"
 )
 
 print(a_slices)
+print(a_slices.shape)
 
+# [..., P1, P2, K, K, CI, BI]
 out_shape = tf.concat(
     [
-        tf.shape(d)[:-3],
-        tf.shape(a_slices)[-3:-2],
-        tf.shape(kernel)[:1],
-        tf.shape(d)[-2:],
+        a_batch_shape,
+        tf.shape(a_slices)[-3:-1],
+        tf.shape(k)[:2],
+        tf.shape(a)[-2:]
     ],
     axis=0,
 )
+print(out_shape)
 
 a_slices = tf.reshape(a_slices, out_shape)
-
-a_slices = tf.convert_to_tensor(a_slices, dtype_hint=tf.float32)
-kernel = tf.convert_to_tensor(kernel, dtype_hint=tf.float32)
-
 print(a_slices)
-print(kernel)
-
-ga = GeometricAlgebra(metric=[1])
-
-a_slices = ga(a_slices)
-
-print(a_slices.tensor)
+print(a_slices.shape)
