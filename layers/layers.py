@@ -177,7 +177,7 @@ class RotorConv1D(GeometricAlgebraLayer):
 
         # a_...p,k,ci,bi; k_k,ci,co,bk; c_bi,bk,bo -> y_...p,co,bo
         #   ...a b c  d ,   e c  f  g ,   d  g  h  ->   ...a f  h
-        x = tf.einsum("...bcf,...bcfi,hij,...abcd,bcfg,dgh->...afj", weights, self.algebra.reversion(k_blade_values),
+        x = tf.einsum("...bcf,...bcfi,hij,...abcd,bcfg,gdh->...afj", weights, self.algebra.reversion(k_blade_values),
                       self.algebra._cayley, a_slices, k_blade_values, self.algebra._cayley)
 
         return x
@@ -377,7 +377,7 @@ class RotorConv2D(GeometricAlgebraLayer):
 
         # sandwich product adds additional cayley matrix, otherwise dimensions correspond; thus just need to add extra
         # dimension from 1d case to all kernel elements to maintain correspondence
-        x = tf.einsum("...bmcf,...bmcfi,hij,...anbmcd,bmcfg,dgh->...anfj", weights,
+        x = tf.einsum("...bmcf,...bmcfi,hij,...anbmcd,bmcfg,gdh->...anfj", weights,
                       self.algebra.reversion(k_blade_values), self.algebra._cayley, a_slices, k_blade_values,
                       self.algebra._cayley)
 
