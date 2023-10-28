@@ -54,3 +54,10 @@ print(out_shape)
 a_slices = tf.reshape(a_slices, out_shape)
 print(a_slices)
 print(a_slices.shape)
+
+a = tf.constant([[1, 2], [3, 4]])
+
+from einops import rearrange, repeat
+
+b = rearrange(a, 'a b -> (a b)')
+print(b)
