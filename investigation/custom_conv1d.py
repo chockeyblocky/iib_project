@@ -18,6 +18,10 @@ import csv
 import matplotlib.pyplot as plt
 import pandas as pd
 
+# set random seed
+tf.random.set_seed(0)
+
+# define ga
 ga = GeometricAlgebra(metric=[1, 1, 1, 1])
 
 # define network
@@ -253,7 +257,7 @@ position_test = np.reshape(position_test, (-1, 3))
 
 # defining hyperparameters
 
-nb_epoch = 20  # changed from 100 for speed
+nb_epoch = 100  # changed from 100 for speed
 batch_size = 64
 
 initial_learning_rate = 1e-4
