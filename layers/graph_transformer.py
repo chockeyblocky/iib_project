@@ -87,7 +87,7 @@ class Attention(Layer):
         q = self.to_q(nodes)
 
         temp = self.to_kv(nodes)
-        k, v = tf.split(temp, [(len(temp)+1) // 2, -1], axis=-1)
+        k, v = tf.split(temp, [(temp.shape[-1]+1) // 2, -1], axis=-1)
 
         e_kv = self.edges_to_kv(edges)
 
@@ -110,10 +110,10 @@ class Attention(Layer):
         if exists(mask):
             mask = rearrange(mask, 'b i -> b i ()') & rearrange(mask, 'b j -> b () j')
             mask = repeat(mask, 'b i j -> (b h) i j', h=h)
-            max_neg_value = -np.finfo(sim.dtype).max
+            max_neg_value = -tf.experimental.numpy.finfo(sim.dtype).max
             sim = tf.where(~mask, max_neg_value, sim)
 
-        attn = tf.nn.softmax(axis=-1)
+        attn = tf.nn.softmax(sim, axis=-1)
         out = einsum('b i j, b i j d -> b i d', attn, v)
         out = rearrange(out, '(b h) n d -> b n (h d)', h=h)
         return self.to_out(out)
