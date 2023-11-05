@@ -177,7 +177,7 @@ class GraphTransformer(Layer):
     def build(self, input_shape):
         self.edge_dim = default(self.edge_dim, input_shape)
 
-    def call(self, inputs, edges=None, adj_mat=None, mask=None):
+    def call(self, inputs, edges=None, mask=None, adj_mat=None):
         nodes = inputs
 
         batch, seq, _ = nodes.shape
