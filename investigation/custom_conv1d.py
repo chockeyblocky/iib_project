@@ -10,7 +10,7 @@ import numpy as np
 from keras.applications.inception_v3 import InceptionV3
 from tfga import GeometricAlgebra
 from tfga.layers import TensorToGeometric, GeometricProductConv1D, GeometricToTensor, GeometricSandwichProductDense
-from layers.layers import RotorConv1D
+from layers.layers import RotorConv1D, EquivariantNonLinear
 from clifford.g3c import *
 from math import sqrt
 from layers.operations import q2S, translation_rotor, down1D
@@ -53,7 +53,7 @@ x2 = GeometricSandwichProductDense(
     ga, units=8, activation="relu",
     blade_indices_kernel=idx,
     blade_indices_bias=idx)(x2)
-
+x2 = EquivariantNonLinear(ga, activation='relu')(x2)
 x2 = GeometricSandwichProductDense(
     ga, units=1, activation="tanh",
     blade_indices_kernel=idx,

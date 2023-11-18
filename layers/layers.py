@@ -405,3 +405,47 @@ class RotorConv2D(GeometricAlgebraLayer):
             result += b_geom
 
         return self.activation(result)
+
+
+class EquivariantNonLinear(GeometricAlgebraLayer):
+    """
+    This is an equivariant multivector layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
+    It uses an equivariant mapping scheme to apply non-linearities to multivectors.
+
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        activation: Activation function to use
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            activation=None,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        ones = tf.ones(self.algebra.num_blades)
+        self.input_grades = tf.stack([self.algebra.keep_blades(ones, self.algebra.get_blade_indices_of_degree(i))
+                                      for i in range(self.algebra.max_degree + 1)])
+        self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
+                              for i in range(self.algebra.max_degree + 1)]
+        self.activation = activations.get(activation)
+
+    def build(self, input_shape: tf.TensorShape):
+        self.built = True
+
+    def call(self, inputs):
+        # get grade 0 part of inputs_r * ~inputs_r - CAN USE SCALAR PART FROM INPUT WITHOUT SQUARING
+        # can do linear transformation - i.e. a*q + b
+        graded_inputs = tf.einsum("...j,ij->...ij", inputs, self.input_grades)
+        quad_form = self.algebra.geom_prod(graded_inputs, self.algebra.reversion(graded_inputs))[..., 0]
+
+        # repeat grade r parts as required for each basis in that grade
+        quad_form_repeated = tf.repeat(quad_form, repeats=self.grade_numbers, axis=-1)
+
+        # apply non-linearity then multiply by inputs and return
+        return self.activation(quad_form_repeated) * inputs
