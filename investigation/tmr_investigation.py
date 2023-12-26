@@ -297,4 +297,4 @@ plt.show()
 
 # saving model
 
-CGAPoseNet.save('test.keras')
+CGAPoseNet.save_weights('test.weights.h5')

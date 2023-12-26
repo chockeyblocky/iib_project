@@ -4,6 +4,7 @@ This contains the custom layers implemented using tfga infrastructure.
 from typing import List, Union
 
 import tensorflow as tf
+import keras
 from tensorflow.keras import (activations, constraints, initializers, layers,
                               regularizers)
 from tensorflow.keras.utils import register_keras_serializable
@@ -13,6 +14,7 @@ from tfga.layers import GeometricAlgebraLayer
 from tfga.tfga import GeometricAlgebra
 
 
+@keras.saving.register_keras_serializable(package="EquiLayers")
 class RotorConv1D(GeometricAlgebraLayer):
     """
     This is a convolution layer as described in "Geometric Clifford Algebra
@@ -204,7 +206,33 @@ class RotorConv1D(GeometricAlgebraLayer):
 
         return self.activation(result)
 
+    def get_config(self):
+        config = super().get_config()
+        config.update(
+            {
+                "blade_indices_kernel": self.blade_indices_kernel.numpy(),
+                "blade_indices_bias": self.blade_indices_bias.numpy(),
+                "dilations": self.dilations,
+                "padding": self.padding,
+                "stride": self.stride,
+                "filters": self.filters,
+                "activation": activations.serialize(self.activation),
+                "use_bias": self.use_bias,
+                "kernel_initializer": initializers.serialize(self.kernel_initializer),
+                "bias_initializer": initializers.serialize(self.bias_initializer),
+                "kernel_regularizer": regularizers.serialize(self.kernel_regularizer),
+                "bias_regularizer": regularizers.serialize(self.bias_regularizer),
+                "activity_regularizer": regularizers.serialize(
+                    self.activity_regularizer
+                ),
+                "kernel_constraint": constraints.serialize(self.kernel_constraint),
+                "bias_constraint": constraints.serialize(self.bias_constraint),
+            }
+        )
+        return config
 
+
+@keras.saving.register_keras_serializable(package="EquiLayers")
 class RotorConv2D(GeometricAlgebraLayer):
     """
     This is a  2D convolution layer as described in "Geometric Clifford Algebra
@@ -407,6 +435,7 @@ class RotorConv2D(GeometricAlgebraLayer):
         return self.activation(result)
 
 
+@keras.saving.register_keras_serializable(package="EquiLayers")
 class EquivariantNonLinear(GeometricAlgebraLayer):
     """
     This is an equivariant multivector layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
