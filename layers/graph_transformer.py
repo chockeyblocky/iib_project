@@ -91,6 +91,7 @@ class Attention(Layer):
 
         e_kv = self.edges_to_kv(edges)
 
+        # separating out each of the heads
         q, k, v, e_kv = map(lambda t: rearrange(t, 'b ... (h d) -> (b h) ... d', h=h), (q, k, v, e_kv))
 
         if exists(self.pos_emb):
@@ -100,7 +101,6 @@ class Attention(Layer):
             k = apply_rotary_emb(freqs, k)
 
         ek, ev = e_kv, e_kv
-
         k, v = map(lambda t: rearrange(t, 'b j d -> b () j d '), (k, v))
         k = k + ek
         v = v + ev
@@ -195,7 +195,6 @@ class GraphTransformer(Layer):
         for attn_block, ff_block in self.layers:
             attn, attn_residual = attn_block
             nodes = attn_residual(attn(nodes, all_edges, mask=mask), nodes)
-
             if exists(ff_block):
                 ff, ff_residual = ff_block
                 nodes = ff_residual(ff(nodes), nodes)

@@ -17,6 +17,6 @@ nodes = tf.random.normal([1, 128, 256])
 edges = tf.random.normal([1, 128, 128, 512])
 mask = tf.cast(tf.ones([1, 128]), tf.bool)
 
-nodes, edges = model([nodes, edges, mask])
+nodes, edges = model(nodes, edges, mask)
 
 print(nodes.shape)  # (1, 128, 256) - project to R^3 for coordinate
