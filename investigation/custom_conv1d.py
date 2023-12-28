@@ -229,6 +229,7 @@ with open(dir + 'TEST.csv', "w") as csv_file:
 y_test = np.reshape(y_test, (-1, 8))
 
 df_train = pd.read_csv(dir + '/TRAIN.csv')
+print(df_train.head(10))
 train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     rescale=1. / 255)
 

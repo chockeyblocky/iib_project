@@ -73,16 +73,11 @@ PATH = "C:/Users/Christian/Documents/Coursework/iib_project/"
 # reading the dataset labels and converting them into motors (Train set)
 
 list_of_lines = open(PATH + FOLDER + "/dataset_train.txt").readlines()
-newfile = open(PATH + FOLDER + "/new_dataset_train.txt", "w")
-
 position_train = []
-
-for i in range(0, 3):
-    newfile.write(list_of_lines[i])
-    newfile.write("\n")
+fieldnames = ['filename', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+df_train = pd.DataFrame(columns=fieldnames)
 
 for i in range(3, len(list_of_lines)):
-    a = []
     a = list_of_lines[i].split()
 
     position_train = np.append(position_train, [float(a[1]), float(a[2]), float(a[3])])
@@ -101,60 +96,25 @@ for i in range(3, len(list_of_lines)):
     a[7] = M[13]
     a.append(M[26])
 
-    b = " ".join(map(str, a))
-    list_of_lines[i] = b
-    newfile.write(list_of_lines[i])
-    newfile.write("\n")
+    df_train.loc[len(df_train.index)] = a
 
 position_train = np.reshape(position_train, (-1, 3))
 
-# reads the dataset frames, reshapes them and normalizes them  (Train Set)
-
-list_train = open(
-    PATH + FOLDER + "/new_dataset_train.txt").readlines()  # no need for closing, python will do
-# it for you
-
 dir = PATH + FOLDER + "/"
 
-with open(dir + 'TRAIN.csv', "w") as csv_file:
-    fieldnames = ['filename', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-    writer.writeheader()
-
-    for i in range(6, len(list_train)):
-
-        if i % 100 == 0:
-            print(i)
-
-        a = list_train[i].split()
-
-        d = {'filename': a[0],
-             'a': a[1],
-             'b': a[2],
-             'c': a[3],
-             'd': a[4],
-             'e': a[5],
-             'f': a[6],
-             'g': a[7],
-             'h': a[8]}
-        writer.writerow(d)
+print(df_train.head(10))
 
 # reads the dataset labels and converts them into motors (Test Set)
 
 list_of_lines = open(PATH + FOLDER + "/dataset_test.txt").readlines()  # no need for closing, python will do it for you
-newfile = open(PATH + FOLDER + "/new_dataset_test.txt", "w")
-
+df_test = pd.DataFrame(columns=fieldnames)
 position_test = []
-for i in range(0, 3):
-    newfile.write(list_of_lines[i])
-    newfile.write("\n")
+y_test = []
 
 for i in range(3, len(list_of_lines)):
 
     a = list_of_lines[i].split()
-
     position_test = np.append(position_test, [float(a[1]), float(a[2]), float(a[3])])
-
     Ta = translation_rotor(float(a[1]) * e1 + float(a[2]) * e2 + float(a[3]) * e3)
     R = q2S(float(a[4]), float(a[5]), float(a[6]), float(a[7]))
 
@@ -168,76 +128,33 @@ for i in range(3, len(list_of_lines)):
     a[6] = M[11]
     a[7] = M[13]
     a.append(M[26])
-
-    # print(a)
-
-    b = " ".join(map(str, a))
-    list_of_lines[i] = b
-    newfile.write(list_of_lines[i])
-    newfile.write("\n")
-
     if i == 3:
         print(a)
         print(list_of_lines[i])
 
+    if i % 100 == 0:
+        print(i)
+    df_test.loc[len(df_test.index)] = a
+
+    y_test.append(float(a[1]))
+    y_test.append(float(a[2]))
+    y_test.append(float(a[3]))
+    y_test.append(float(a[4]))
+    y_test.append(float(a[5]))
+    y_test.append(float(a[6]))
+    y_test.append(float(a[7]))
+    y_test.append(float(a[8]))
+
 position_test = np.reshape(position_test, (-1, 3))
-
-y_test = []
-
-# reads the dataset frames, reshapes them and normalizes them  (Train Set)
-
-list_test = open(PATH + FOLDER + "/new_dataset_test.txt").readlines()
-
-with open(dir + 'TEST.csv', "w") as csv_file:
-    fieldnames = ['filename', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-    writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
-    writer.writeheader()
-
-    for i in range(6, len(list_test)):
-
-        if i % 100 == 0:
-            print(i)
-
-        a = list_test[i].split()
-
-        # img = cv2.imread("/content/drive/MyDrive/"+ FOLDER + "/" + a[0])
-
-        # resized = cv2.resize(img, (224, 224))
-        # normalized = cv2.normalize(resized, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-
-        # x_train = np.append(x_train, normalized)
-
-        y_test.append(float(a[1]))
-        y_test.append(float(a[2]))
-        y_test.append(float(a[3]))
-        y_test.append(float(a[4]))
-        y_test.append(float(a[5]))
-        y_test.append(float(a[6]))
-        y_test.append(float(a[7]))
-        y_test.append(float(a[8]))
-
-        d = {'filename': a[0],
-             'a': a[1],
-             'b': a[2],
-             'c': a[3],
-             'd': a[4],
-             'e': a[5],
-             'f': a[6],
-             'g': a[7],
-             'h': a[8]}
-        writer.writerow(d)
 
 y_test = np.reshape(y_test, (-1, 8))
 
-df_train = pd.read_csv(dir + '/TRAIN.csv')
 train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     rescale=1. / 255)
 
 test_datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     rescale=1. / 255)
 
-# df = pd.read_csv(dir + 'train_df.csv', delimiter=' ', header=None, names=['filename', 'a', 'b', 'c', 'd', 'e', 'f',
-# 'g', 'h'])
 columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
 train_generator = train_datagen.flow_from_dataframe(dataframe=df_train, directory=dir,
                                                     x_col="filename", y_col=columns, has_ext=True,
@@ -246,7 +163,6 @@ train_generator = train_datagen.flow_from_dataframe(dataframe=df_train, director
                                                     sort=False,
                                                     batch_size=64)
 
-df_test = pd.read_csv(dir + '/TEST.csv')
 test_generator = test_datagen.flow_from_dataframe(dataframe=df_test, directory=dir,
                                                   x_col="filename", y_col=columns, has_ext=True,
                                                   class_mode="raw", target_size=(224, 224),

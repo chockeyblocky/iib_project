@@ -6,6 +6,7 @@ import keras
 import numpy as np
 from tfga import GeometricAlgebra
 from tfga.layers import TensorToGeometric, GeometricToTensor, GeometricSandwichProductDense
+from layers.layers import *
 from keras.layers import Input, Reshape, Flatten, GlobalAveragePooling2D, \
     Dense, Dropout, BatchNormalization
 
@@ -20,14 +21,14 @@ def get_model():
     x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
     x2 = GeometricSandwichProductDense(ga, units=8, blade_indices_kernel=idx, blade_indices_bias=idx)(x2)
 
-    # x2 = RotorConv1D(
-    #     ga, filters=4, kernel_size=2, stride=1, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
-    #     activation='relu'
-    # )(x2)
-    # x2 = RotorConv1D(
-    #     ga, filters=1, kernel_size=2, stride=1, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
-    #     activation='relu'
-    # )(x2)
+    x2 = RotorConv1D(
+        ga, filters=4, kernel_size=2, stride=1, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
+        activation='relu'
+    )(x2)
+    x2 = RotorConv1D(
+        ga, filters=1, kernel_size=2, stride=1, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
+        activation='relu'
+    )(x2)
     x2 = Reshape((-1, 16))(x2)
     x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
     outputs2 = Flatten()(x2)
@@ -62,5 +63,5 @@ new_model.load_weights("custom_model.weights.h5")
 
 # Let's check:
 print(np.testing.assert_allclose(
-    model.predict(test_input), np.ones([16, 1]) # new_model.predict(test_input)
+    model.predict(test_input), new_model.predict(test_input)
 ))
