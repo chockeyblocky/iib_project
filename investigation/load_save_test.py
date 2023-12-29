@@ -9,6 +9,7 @@ from tfga.layers import TensorToGeometric, GeometricToTensor, GeometricSandwichP
 from layers.layers import *
 from keras.layers import Input, Reshape, Flatten, GlobalAveragePooling2D, \
     Dense, Dropout, BatchNormalization
+import pickle
 
 ga = GeometricAlgebra(metric=[1, 1, 1, 1])
 idx = ga.get_kind_blade_indices("even")  # gets a mask of indices for the
@@ -56,7 +57,16 @@ model = train_model(model)
 model.save_weights("custom_model.weights.h5")
 
 new_model = get_model()
-new_model.load_weights("custom_model.weights.h5")
+# new_model.load_weights("custom_model.weights.h5")  # unstable with different versions of keras/tensorflow - doesn't
+# work for some reason
+
+with open('test.pkl', 'wb') as f:
+    pickle.dump(model.get_weights(), f)
+
+with open('test.pkl', 'rb') as f:
+    weights = pickle.load(f)
+
+new_model.set_weights(weights)
 
 # Now, we can simply load without worrying about our custom objects.
 # reconstructed_model = keras.models.load_model("custom_model.keras")
