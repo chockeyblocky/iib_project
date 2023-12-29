@@ -176,8 +176,12 @@ CGAPoseNet.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule)
                    loss=mean_squared_error, run_eagerly=True)
 
 # loading model
-model_path = PATH + "models/basic.weights.h5"
-CGAPoseNet.load_weights(model_path)
+import pickle
+
+model_path = PATH + "models/basic_weights.pkl"
+with open(model_path, 'rb') as f:
+    weights = pickle.load(f)
+CGAPoseNet.set_weights(weights)
 
 # make predictions
 y_pred = CGAPoseNet.predict(test_generator)
@@ -332,7 +336,6 @@ example = next(test_generator)
 
 test = example[0][0]
 test = np.reshape(test, (-1, 224, 224, 3))
-CGAPoseNet.load_weights("weights.h5")
 layer_outs = CGAPoseNet(test)
 print(layer_outs)
 np.save("predmotor.npy", layer_outs)
