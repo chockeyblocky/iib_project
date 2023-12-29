@@ -215,6 +215,6 @@ plt.show()
 import pickle
 
 with open('weights.pkl', 'wb') as f:
-    pickle.dump(model.get_weights(), f)
+    pickle.dump(CGAPoseNet.get_weights(), f)
 
 CGAPoseNet.save_weights('test.weights.h5')
