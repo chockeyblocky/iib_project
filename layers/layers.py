@@ -13,6 +13,8 @@ from tfga.blades import BladeKind
 from tfga.layers import GeometricAlgebraLayer
 from tfga.tfga import GeometricAlgebra
 
+# TODO: fix serialisation when tfga fixes it
+
 
 @keras.saving.register_keras_serializable(package="EquiLayers")
 class RotorConv1D(GeometricAlgebraLayer):
@@ -71,6 +73,8 @@ class RotorConv1D(GeometricAlgebraLayer):
             blade_indices_kernel, dtype_hint=tf.int64
         )
         if use_bias:
+            if blade_indices_bias is None:
+                blade_indices_bias = self.algebra.get_kind_blade_indices('scalar')
             self.blade_indices_bias = tf.convert_to_tensor(
                 blade_indices_bias, dtype_hint=tf.int64
             )
@@ -284,13 +288,15 @@ class RotorConv2D(GeometricAlgebraLayer):
         self.dilations = dilations
 
         # if no blade index specified, default to rotors (only even indices)
-        if blade_indices_kernel is not None:
+        if blade_indices_kernel is None:
             blade_indices_kernel = self.algebra.get_kind_blade_indices('even')
 
         self.blade_indices_kernel = tf.convert_to_tensor(
             blade_indices_kernel, dtype_hint=tf.int64
         )
         if use_bias:
+            if blade_indices_bias is None:
+                blade_indices_bias = self.algebra.get_kind_blade_indices('scalar')
             self.blade_indices_bias = tf.convert_to_tensor(
                 blade_indices_bias, dtype_hint=tf.int64
             )
@@ -457,11 +463,16 @@ class EquivariantNonLinear(GeometricAlgebraLayer):
         super().__init__(
             algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
         )
+        # separate blade indices of each grade
         ones = tf.ones(self.algebra.num_blades)
         self.input_grades = tf.stack([self.algebra.keep_blades(ones, self.algebra.get_blade_indices_of_degree(i))
                                       for i in range(self.algebra.max_degree + 1)])
+
+        # get number of bases of each grade
         self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
                               for i in range(self.algebra.max_degree + 1)]
+
+        # define activation
         self.activation = activations.get(activation)
 
     def build(self, input_shape: tf.TensorShape):
@@ -478,3 +489,174 @@ class EquivariantNonLinear(GeometricAlgebraLayer):
 
         # apply non-linearity then multiply by inputs and return
         return self.activation(quad_form_repeated) * inputs
+
+
+@keras.saving.register_keras_serializable(package="EquiLayers")
+class EquivariantLayerNorm(GeometricAlgebraLayer):
+    """
+    This is an equivariant multivector layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
+    It uses an equivariant mapping scheme to normalise multivectors while preserving grade relative magnitude
+    information.
+
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        activation: Activation function to use
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            parameter_initializer="zeros",
+            parameter_regularizer=None,
+            parameter_constraint=None,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # define parameter initialisation
+        self.parameter_initializer = initializers.get(parameter_initializer)
+        self.parameter_regularizer = regularizers.get(parameter_regularizer)
+        self.parameter_constraint = constraints.get(parameter_constraint)
+        ones = tf.ones(self.algebra.num_blades)
+
+        # separate blade indices of each grade
+        self.input_grades = tf.stack([self.algebra.keep_blades(ones, self.algebra.get_blade_indices_of_degree(i))
+                                      for i in range(self.algebra.max_degree + 1)])
+
+        # get number of bases of each grade
+        self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
+                              for i in range(self.algebra.max_degree + 1)]
+
+
+    def build(self, input_shape: tf.TensorShape):
+        # initialise normalisation parameter
+        shape_parameter = input_shape[:-1].as_list() + self.algebra.max_degree
+        self.parameter = self.add_weight(
+            "parameter",
+            shape=shape_parameter,
+            initializer=self.parameter_initializer,
+            regularizer=self.parameter_regularizer,
+            constraint=self.parameter_constraint,
+            dtype=self.dtype,
+            trainable=True,
+        )
+        self.built = True
+
+    def call(self, inputs):
+        # get norms from quadratic form
+        graded_inputs = tf.einsum("...j,ij->...ij", inputs, self.input_grades)
+        quad_form = self.algebra.geom_prod(graded_inputs, self.algebra.reversion(graded_inputs))[..., 0]
+        norm = tf.math.sqrt(quad_form + 1.0e-12)  # added constant for stability in gradient
+
+        # apply sigmoid
+        s_a = tf.sigmoid(self.parameter)
+
+        # interpolate between 1 and the norm
+        interpolated_norm = s_a * (norm - 1) + 1
+
+        # repeat for division
+        interpolated_norm_repeated = tf.repeat(interpolated_norm, repeats=self.grade_numbers, axis=-1)
+        return inputs / (interpolated_norm_repeated + 1e-12)
+
+
+@keras.saving.register_keras_serializable(package="EquiLayers")
+class EquivariantLinear(GeometricAlgebraLayer):
+    """
+    This is an equivariant multivector layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
+    It does a weighted sum of grades of input multivectors.
+
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        activation: Activation function to use
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            units: int,
+            use_bias=True,
+            kernel_initializer="glorot_uniform",
+            bias_initializer="zeros",
+            kernel_regularizer=None,
+            bias_regularizer=None,
+            activity_regularizer=None,
+            kernel_constraint=None,
+            bias_constraint=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # separate blade indices of each grade
+        ones = tf.ones(self.algebra.num_blades)
+        self.input_grades = tf.stack([self.algebra.keep_blades(ones, self.algebra.get_blade_indices_of_degree(i))
+                                      for i in range(self.algebra.max_degree + 1)])
+
+        # get number of bases of each grade
+        self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
+                              for i in range(self.algebra.max_degree + 1)]
+
+        # use scalar bias only for equivariance
+        if use_bias:
+            blade_indices_bias = self.algebra.get_kind_blade_indices('scalar')
+            self.blade_indices_bias = tf.convert_to_tensor(
+                blade_indices_bias, dtype_hint=tf.int64
+            )
+
+        self.units = units
+        self.use_bias = use_bias
+        self.kernel_initializer = initializers.get(kernel_initializer)
+        self.bias_initializer = initializers.get(bias_initializer)
+        self.kernel_regularizer = regularizers.get(kernel_regularizer)
+        self.bias_regularizer = regularizers.get(bias_regularizer)
+        self.kernel_constraint = constraints.get(kernel_constraint)
+        self.bias_constraint = constraints.get(bias_constraint)
+
+    def build(self, input_shape: tf.TensorShape):
+        self.num_input_units = input_shape[-2]
+        shape_kernel = [
+            self.units,
+            self.num_input_units,
+            self.algebra.max_degree + 1,
+        ]
+        self.kernel = self.add_weight(
+            "kernel",
+            shape=shape_kernel,
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+            dtype=self.dtype,
+            trainable=True,
+        )
+        self.built = True
+        if self.use_bias:
+            shape_bias = [self.units, 1]
+            self.bias = self.add_weight(
+                "bias",
+                shape=shape_bias,
+                initializer=self.bias_initializer,
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint,
+                dtype=self.dtype,
+                trainable=True,
+            )
+
+    def call(self, inputs):
+        print(self.kernel.shape)
+        print(self.grade_numbers)
+        # repeat grade r parts as required for each basis in that grade
+        kernel_repeated = tf.repeat(self.kernel, repeats=self.grade_numbers, axis=-1)
+
+        # multiply kernel with inputs and sum
+        res = tf.einsum("ijk,...jk->...ik", kernel_repeated, inputs)
+
+        # add scalar bias if required
+        if self.bias is not None:
+            b_geom = self.algebra.from_tensor(self.bias, self.blade_indices_bias)
+            res+= b_geom
+
+        return res

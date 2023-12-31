@@ -35,7 +35,7 @@ idx = ga.get_kind_blade_indices("even")  # gets a mask of indices for the
 # given ga which satisfy the blade kind
 
 # define paths to dataset
-FOLDER = "OldHospital"  # Change the name to change the dataset
+FOLDER = "GreatCourt"  # Change the name to change the dataset
 PATH = "C:/Users/Christian/Documents/Coursework/iib_project/"
 
 # reading the dataset labels and converting them into motors (Train set)

@@ -18,6 +18,8 @@ from layers.operations import q2S, translation_rotor, down1D
 import csv
 import matplotlib.pyplot as plt
 import pandas as pd
+import warnings
+warnings.filterwarnings("ignore")
 
 # set random seed
 tf.random.set_seed(0)
@@ -32,31 +34,81 @@ idx = ga.get_kind_blade_indices("even")  # gets a mask of indices for the
 
 # defining base model
 # input tensor for RGB (I think) so has additional 3 dimensions
+
+# BASIC MODEL - non-equivariant
+# model = InceptionV3(classifier_activation=None, weights="imagenet",
+#                     input_tensor=Input(shape=(224, 224, 3)))
+#
+# x2 = Dropout(0.3)(model.layers[-2].output)
+# x2 = Reshape((-1, 8))(x2)
+# x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
+# x2 = GeometricSandwichProductDense(
+#     ga, units=128, activation='relu',
+#     blade_indices_kernel=idx,
+#     blade_indices_bias=idx)(x2)
+# x2 = GeometricSandwichProductDense(
+#     ga, units=64, activation="relu",
+#     blade_indices_kernel=idx,
+#     blade_indices_bias=idx)(x2)
+# x2 = GeometricSandwichProductDense(
+#     ga, units=1, activation="tanh",
+#     blade_indices_kernel=idx,
+#     blade_indices_bias=idx)(x2)
+# x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
+# outputs2 = Flatten()(x2)
+
+# model = InceptionV3(classifier_activation=None, weights="imagenet",
+#                     input_tensor=Input(shape=(224, 224, 3)))
+#
+# x2 = Dropout(0.3)(model.layers[-2].output)
+# x2 = Reshape((-1, 8))(x2)
+# x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
+# x2 = GeometricSandwichProductDense(
+#     ga, units=128, activation=None,
+#     blade_indices_kernel=idx,
+#     blade_indices_bias=idx)(x2)
+# x2 = EquivariantNonLinear(ga, activation='relu')(x2)
+# x2 = GeometricSandwichProductDense(
+#     ga, units=64, activation=None,
+#     blade_indices_kernel=idx,
+#     blade_indices_bias=idx)(x2)
+# x2 = EquivariantNonLinear(ga, activation='relu')(x2)
+# x2 = GeometricSandwichProductDense(
+#     ga, units=1, activation=None,
+#     blade_indices_kernel=idx,
+#     blade_indices_bias=idx)(x2)
+# x2 = EquivariantNonLinear(ga, activation='tanh')(x2)
+# x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
+# outputs2 = Flatten()(x2)
+
+# Rotor conv equivariant
 model = InceptionV3(classifier_activation=None, weights="imagenet",
                     input_tensor=Input(shape=(224, 224, 3)))
-
 x2 = Dropout(0.3)(model.layers[-2].output)
 x2 = Reshape((-1, 1, 8))(x2)
 x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
-
 x2 = RotorConv1D(
-    ga, filters=4, kernel_size=8, stride=2, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
-    activation='relu'
+    ga, filters=16, kernel_size=8, stride=2, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
+    activation=None
+)(x2)
+x2 = RotorConv1D(
+    ga, filters=4, kernel_size=8, stride=4, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
+    activation=None
 )(x2)
 x2 = RotorConv1D(
     ga, filters=1, kernel_size=8, stride=4, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
-    activation='relu'
+    activation=None
 )(x2)
 
 x2 = Reshape((-1, 16))(x2)
 
 x2 = GeometricSandwichProductDense(
-    ga, units=8, activation="relu",
+    ga, units=8, activation=None,
     blade_indices_kernel=idx,
     blade_indices_bias=idx)(x2)
 x2 = EquivariantNonLinear(ga, activation='relu')(x2)
 x2 = GeometricSandwichProductDense(
-    ga, units=1, activation="tanh",
+    ga, units=1, activation=None,
     blade_indices_kernel=idx,
     blade_indices_bias=idx)(x2)
 
