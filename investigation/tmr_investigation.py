@@ -11,7 +11,7 @@ import numpy as np
 from keras.applications.inception_v3 import InceptionV3
 from tfga import GeometricAlgebra
 from tfga.layers import TensorToGeometric, GeometricProductConv1D, GeometricToTensor, GeometricSandwichProductDense
-from layers.layers import RotorConv1D, EquivariantNonLinear
+from layers.layers import RotorConv1D, EquivariantNonLinear, EquivariantLayerNorm, EquivariantLinear
 from clifford.g3c import *
 from math import sqrt
 from layers.operations import q2S, translation_rotor, down1D
@@ -91,12 +91,16 @@ x2 = RotorConv1D(
     ga, filters=16, kernel_size=8, stride=2, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
     activation=None
 )(x2)
+x2 = EquivariantNonLinear(ga, activation='sigmoid')(x2)
+x2 = EquivariantLayerNorm(ga)(x2)
 x2 = RotorConv1D(
-    ga, filters=4, kernel_size=8, stride=4, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
+    ga, filters=8, kernel_size=8, stride=2, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
     activation=None
 )(x2)
+x2 = EquivariantNonLinear(ga, activation='sigmoid')(x2)
+x2 = EquivariantLayerNorm(ga)(x2)
 x2 = RotorConv1D(
-    ga, filters=1, kernel_size=8, stride=4, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
+    ga, filters=4, kernel_size=8, stride=2, padding='SAME', blade_indices_kernel=idx, blade_indices_bias=idx,
     activation=None
 )(x2)
 
@@ -105,12 +109,10 @@ x2 = Reshape((-1, 16))(x2)
 x2 = GeometricSandwichProductDense(
     ga, units=8, activation=None,
     blade_indices_kernel=idx,
-    blade_indices_bias=idx)(x2)
-x2 = EquivariantNonLinear(ga, activation='relu')(x2)
-x2 = GeometricSandwichProductDense(
-    ga, units=1, activation=None,
-    blade_indices_kernel=idx,
-    blade_indices_bias=idx)(x2)
+    blade_indices_bias=ga.get_kind_blade_indices('scalar'))(x2)
+x2 = EquivariantNonLinear(ga, activation='sigmoid')(x2)
+x2 = EquivariantLayerNorm(ga)(x2)
+x2 = EquivariantLinear(ga, units=1)(x2)
 
 x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
 outputs2 = Flatten()(x2)

@@ -532,8 +532,9 @@ class EquivariantLayerNorm(GeometricAlgebraLayer):
 
 
     def build(self, input_shape: tf.TensorShape):
-        # initialise normalisation parameter
-        shape_parameter = input_shape[:-1].as_list() + self.algebra.max_degree
+        # initialise normalisation parameter assuming first dimension is batch dim
+        shape_parameter = input_shape[1:-1].as_list()
+        shape_parameter.append(self.algebra.max_degree.numpy() + 1)
         self.parameter = self.add_weight(
             "parameter",
             shape=shape_parameter,
@@ -646,8 +647,6 @@ class EquivariantLinear(GeometricAlgebraLayer):
             )
 
     def call(self, inputs):
-        print(self.kernel.shape)
-        print(self.grade_numbers)
         # repeat grade r parts as required for each basis in that grade
         kernel_repeated = tf.repeat(self.kernel, repeats=self.grade_numbers, axis=-1)
 
