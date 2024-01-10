@@ -11,7 +11,7 @@ import numpy as np
 from keras.applications.inception_v3 import InceptionV3
 from tfga import GeometricAlgebra
 from tfga.layers import TensorToGeometric, GeometricProductConv1D, GeometricToTensor, GeometricSandwichProductDense
-from layers.layers import RotorConv1D, EquivariantNonLinear
+from layers.layers import *
 from clifford.g3c import *
 from math import sqrt
 from layers.operations import q2S, translation_rotor, down1D, up1D
@@ -23,6 +23,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import numpy as np
 import IPython
+import warnings
+warnings.filterwarnings("ignore")
 
 # set random seed
 tf.random.set_seed(0)
@@ -148,18 +150,10 @@ model = InceptionV3(classifier_activation=None, weights="imagenet",
 x2 = Dropout(0.3)(model.layers[-2].output)
 x2 = Reshape((-1, 8))(x2)
 x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
-x2 = GeometricSandwichProductDense(
-    ga, units=128, activation="relu",
-    blade_indices_kernel=idx,
-    blade_indices_bias=idx)(x2)
-x2 = GeometricSandwichProductDense(
-    ga, units=64, activation="relu",
-    blade_indices_kernel=idx,
-    blade_indices_bias=idx)(x2)
-x2 = GeometricSandwichProductDense(
-    ga, units=1, activation="tanh",
-    blade_indices_kernel=idx,
-    blade_indices_bias=idx)(x2)
+x2 = EquivariantLinear(ga, units=128)(x2)
+x2 = EquivariantNonLinear(ga, activation='relu')(x2)
+x2 = EquivariantLayerNorm(ga)(x2)
+x2 = EquivariantLinear(ga, units=1)(x2)
 x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
 outputs2 = Flatten()(x2)
 
@@ -178,10 +172,13 @@ CGAPoseNet.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 # loading model
 import pickle
 
-model_path = PATH + "models/basic_weights.pkl"
+model_path = PATH + "investigation/5_relu_equinl.pkl"
 with open(model_path, 'rb') as f:
     weights = pickle.load(f)
 CGAPoseNet.set_weights(weights)
+
+CGAPoseNet.evaluate(test_generator)
+CGAPoseNet.evaluate(train_generator)
 
 # make predictions
 y_pred = CGAPoseNet.predict(test_generator)
@@ -415,7 +412,7 @@ fig = go.Figure(data=[
         # i, j and k give the vertices of triangles
         i=[0, 0, 0, 1],
         j=[1, 2, 3, 2],
-        k=[2, 3, 1, 3],
+        k=[2, 3, 1, 2],
         showscale=False,
         name="Ground Truth"
     ),
@@ -443,49 +440,49 @@ fig.update_layout(plot_bgcolor='white', paper_bgcolor='rgba(0,0,0,0)', scene_asp
 pio.write_html(fig, file="tetrahedra.html", auto_open=True)
 
 M = 0
-for i in range(len(layer5[0])):
-    c = layer5[0][i]
-
-    xn = []
-    yn = []
-    zn = []
-
-    coeff = [float(c[0]), float(c[5]), float(c[6]),
-             float(c[7]), float(c[8]), float(c[9]),
-             float(c[10]), float(c[15])]
-
-    # M += packmotor(coeff)
-    M = packmotor(coeff)
-    M = M / sqrt((M * ~M)[0])
-
-    for j in range(len(x0)):
-        v = float(x0[j]) * e1 + float(y0[j]) * e2 + float(z0[j]) * e3
-        V = up1D(v)
-        P = M * V * ~M
-        p = down1D(P)
-
-        xn.append(p[1])
-        yn.append(p[2])
-        zn.append(p[3])
-
-    fig.add_trace(go.Mesh3d(
-        x=xn,
-        y=yn,
-        z=zn,
-        # colorbar_title='z',
-        colorscale=[[0, 'green'],
-                    [0.5, 'limegreen'],
-                    [1, 'lime']],
-        # Intensity of each vertex, which will be interpolated and color-coded
-        intensity=np.linspace(0, 1, 8, endpoint=True),
-        # i, j and k give the vertices of triangles
-        i=[0, 0, 0, 1],
-        j=[1, 2, 3, 2],
-        k=[2, 3, 1, 3],
-        showscale=False,
-        opacity=0.5,
-        name="128 coeff"
-    ))
+# for i in range(len(layer5[0])):
+#     c = layer5[0][i]
+#
+#     xn = []
+#     yn = []
+#     zn = []
+#
+#     coeff = [float(c[0]), float(c[5]), float(c[6]),
+#              float(c[7]), float(c[8]), float(c[9]),
+#              float(c[10]), float(c[15])]
+#
+#     # M += packmotor(coeff)
+#     M = packmotor(coeff)
+#     M = M / sqrt((M * ~M)[0])
+#
+#     for j in range(len(x0)):
+#         v = float(x0[j]) * e1 + float(y0[j]) * e2 + float(z0[j]) * e3
+#         V = up1D(v)
+#         P = M * V * ~M
+#         p = down1D(P)
+#
+#         xn.append(p[1])
+#         yn.append(p[2])
+#         zn.append(p[3])
+#
+#     fig.add_trace(go.Mesh3d(
+#         x=xn,
+#         y=yn,
+#         z=zn,
+#         # colorbar_title='z',
+#         colorscale=[[0, 'green'],
+#                     [0.5, 'limegreen'],
+#                     [1, 'lime']],
+#         # Intensity of each vertex, which will be interpolated and color-coded
+#         intensity=np.linspace(0, 1, 8, endpoint=True),
+#         # i, j and k give the vertices of triangles
+#         i=[0, 0, 0, 1],
+#         j=[1, 2, 3, 2],
+#         k=[2, 3, 1, 3],
+#         showscale=False,
+#         opacity=0.5,
+#         name="128 coeff"
+#     ))
 
 M = 0
 for i in range(len(layer4[0])):

@@ -507,7 +507,7 @@ class EquivariantLayerNorm(GeometricAlgebraLayer):
     def __init__(
             self,
             algebra: GeometricAlgebra,
-            parameter_initializer="zeros",
+            parameter_initializer="ones",
             parameter_regularizer=None,
             parameter_constraint=None,
             activity_regularizer=None,
