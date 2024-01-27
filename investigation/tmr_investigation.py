@@ -153,16 +153,33 @@ idx = ga.get_kind_blade_indices("even")  # gets a mask of indices for the
 
 
 ##### Basic equivariant non-linear -- MODEL 4 TO TEST
+# model = InceptionV3(classifier_activation=None, weights="imagenet",
+#                     input_tensor=Input(shape=(224, 224, 3)))
+#
+# x2 = Dropout(0.3)(model.layers[-2].output)
+# x2 = Reshape((-1, 8))(x2)
+# x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
+# x2 = EquivariantLinear(ga, units=128)(x2)
+# x2 = EquivariantNonLinear(ga, activation='sigmoid')(x2)
+# x2 = EquivariantLayerNorm(ga)(x2)
+# x2 = EquivariantLinear(ga, units=1)(x2)
+# x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
+# outputs2 = Flatten()(x2)
+
+##### Basic geometric sandwich product non-equivariant -- MODEL 5 TO TEST
 model = InceptionV3(classifier_activation=None, weights="imagenet",
                     input_tensor=Input(shape=(224, 224, 3)))
-
 x2 = Dropout(0.3)(model.layers[-2].output)
 x2 = Reshape((-1, 8))(x2)
 x2 = TensorToGeometric(ga, blade_indices=idx)(x2)
-x2 = EquivariantLinear(ga, units=128)(x2)
-x2 = EquivariantNonLinear(ga, activation='sigmoid')(x2)
-x2 = EquivariantLayerNorm(ga)(x2)
-x2 = EquivariantLinear(ga, units=1)(x2)
+x2 = GeometricSandwichProductDense(
+    ga, units=128, activation='relu',
+    blade_indices_kernel=idx,
+    blade_indices_bias=ga.get_kind_blade_indices('scalar'))(x2)
+x2 = GeometricSandwichProductDense(
+    ga, units=1, activation='tanh',
+    blade_indices_kernel=idx,
+    blade_indices_bias=ga.get_kind_blade_indices('scalar'))(x2)
 x2 = GeometricToTensor(ga, blade_indices=idx)(x2)
 outputs2 = Flatten()(x2)
 
