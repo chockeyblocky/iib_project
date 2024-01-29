@@ -51,12 +51,73 @@ def load_data(filename, subsample=None, keep_trajectories=False):
     return x, y, trajectories
 
 
+def create_dataset(dataset_name):
+    """
+    Creates tf dataset for training.
+    :param dataset_name: type of dataset (e.g. "train")
+    :return: tf dataset
+    """
+    full_path = PATH + "datasets/" + dataset_name + ".npz"
+    x, y, trajectories = load_data(full_path)
+
+    return tf.data.Dataset.from_tensor_slices((x, y))
+
+
+def mlp_model():
+    """
+    Creates a basic MLP model for use in the n-body modelling problem.
+    :return: MLP model
+    """
+    # define input shape
+    x = tf.keras.Input(shape=(4, 7,))
+
+    # define model layers and instantiate model
+    layers = tf.keras.Sequential([
+        tf.keras.layers.Reshape((-1, 28)),
+        tf.keras.layers.Dense(10, activation='relu'),
+        tf.keras.layers.Dense(5, activation='relu'),
+        tf.keras.layers.Dense(12),
+        tf.keras.layers.Reshape((-1, 4, 3))
+    ])
+
+    y = layers(x)
+    model = tf.keras.Model(x, y)
+
+    initial_learning_rate = 1e-4
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=100,
+        decay_rate=0.98,
+        staircase=True)
+
+    # compile the model
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
+                  loss=tf.keras.losses.mean_squared_error, run_eagerly=True)
+
+    return model
+
 def main():
     """
     Main function to run.
     :return:
     """
-    load_data(PATH + 'datasets/train.npz')
+    ds_train = create_dataset("train")
+    ds_val = create_dataset("val")
+    model = mlp_model()
+    model.summary()
+
+    es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
+    batch_size = 100
+    num_epochs = 100
+
+    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
+    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
+
+    # training
+    model_train = model.fit(ds_train_batch,
+                            validation_data=ds_val_batch,
+                            epochs=num_epochs,
+                            callbacks=es_callback)
 
 
 if __name__ == "__main__":
