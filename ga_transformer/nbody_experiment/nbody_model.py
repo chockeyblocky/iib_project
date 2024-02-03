@@ -69,16 +69,13 @@ def cga_embed_inputs(x, ga):
 
 def cga_extract_outputs(y, ga):
     """
-    Extracts 4D vector outputs corresponding to training dataset (mass, x, y, z).
+    Extracts 3D vector outputs corresponding to training dataset (x, y, z).
     :param y: output multivector
     :param ga: Geometric Algebra to be used
     :return: tensor extracted from CGA
     """
-    # get blade indices corresponding to points
-    blade_indices = tf.concat([ga.get_blade_indices_of_degree(0), ga.get_blade_indices_of_degree(1)], axis=-1)
-
-    # extract tensor from tfga
-    return tf.gather(y, blade_indices, axis=-1)
+    # extract tensor from tfga by getting e0, e1, e2 parts
+    return tf.gather(y, ga.get_blade_indices_of_degree(1)[:3], axis=-1)
 
 
 if __name__ == "__main__":
