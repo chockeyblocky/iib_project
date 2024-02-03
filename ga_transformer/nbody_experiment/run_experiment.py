@@ -96,6 +96,7 @@ def mlp_model():
 
     return model
 
+
 def main():
     """
     Main function to run.
