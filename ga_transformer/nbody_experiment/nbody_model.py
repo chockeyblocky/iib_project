@@ -88,3 +88,8 @@ if __name__ == "__main__":
     d = cga_extract_outputs(c, ga)
     print(x.shape, c.shape)
     print(y.shape, d.shape)
+    print(c[0, 0])
+    print(c[0, 1])
+    print(ga.inner_prod(c[0, 0], c[0, 1]))
+    print(ga.geom_prod(c[0, 0], ga.reversion(c[0, 1])))
+    print(ga.num_blades)

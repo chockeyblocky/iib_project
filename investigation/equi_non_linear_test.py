@@ -8,7 +8,7 @@ from tfga import GeometricAlgebra
 
 ga = GeometricAlgebra([1, 1, 1, 1])
 
-model = EquivariantNonLinear(ga, activation='relu')
+model = EquivariantNonLinear(ga, activation='sigmoid', method='scalar')
 norm = EquivariantLayerNorm(ga, parameter_initializer='ones')
 linear = EquivariantLinear(ga, units=5)
 

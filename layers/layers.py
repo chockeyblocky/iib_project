@@ -13,6 +13,7 @@ from tfga.blades import BladeKind
 from tfga.layers import GeometricAlgebraLayer
 from tfga.tfga import GeometricAlgebra
 
+
 # TODO: fix serialisation when tfga fixes it
 
 
@@ -451,6 +452,7 @@ class EquivariantNonLinear(GeometricAlgebraLayer):
      Args:
         algebra: GeometricAlgebra instance to use for the parameters
         activation: Activation function to use
+        method: 'norm' or 'scalar' - choice of which invariant to use
     """
 
     def __init__(
@@ -458,6 +460,7 @@ class EquivariantNonLinear(GeometricAlgebraLayer):
             algebra: GeometricAlgebra,
             activation=None,
             activity_regularizer=None,
+            method='norm',
             **kwargs
     ):
         super().__init__(
@@ -475,20 +478,27 @@ class EquivariantNonLinear(GeometricAlgebraLayer):
         # define activation
         self.activation = activations.get(activation)
 
+        # save method
+        self.method = method
+
     def build(self, input_shape: tf.TensorShape):
         self.built = True
 
     def call(self, inputs):
-        # get grade 0 part of inputs_r * ~inputs_r - CAN USE SCALAR PART FROM INPUT WITHOUT SQUARING
-        # can do linear transformation - i.e. a*q + b
-        graded_inputs = tf.einsum("...j,ij->...ij", inputs, self.input_grades)
-        quad_form = self.algebra.geom_prod(graded_inputs, self.algebra.reversion(graded_inputs))[..., 0]
+        if self.method == 'norm':
+            # get grade 0 part of inputs_r * ~inputs_r - CAN USE SCALAR PART FROM INPUT WITHOUT SQUARING
+            # can do linear transformation - i.e. a*q + b
+            graded_inputs = tf.einsum("...j,ij->...ij", inputs, self.input_grades)
+            quad_form = self.algebra.geom_prod(graded_inputs, self.algebra.reversion(graded_inputs))[..., 0]
 
-        # repeat grade r parts as required for each basis in that grade
-        quad_form_repeated = tf.repeat(quad_form, repeats=self.grade_numbers, axis=-1)
+            # repeat grade r parts as required for each basis in that grade
+            quad_form_repeated = tf.repeat(quad_form, repeats=self.grade_numbers, axis=-1)
 
-        # apply non-linearity then multiply by inputs and return
-        return self.activation(quad_form_repeated) * inputs
+            # apply non-linearity then multiply by inputs and return
+            return self.activation(quad_form_repeated) * inputs
+
+        # if scalar method was selected, apply non-linearity to scalar part of multivector
+        return tf.einsum('...i,...ij->...ij', self.activation(inputs[..., 0]), inputs)
 
 
 @keras.saving.register_keras_serializable(package="EquiLayers")
@@ -530,7 +540,6 @@ class EquivariantLayerNorm(GeometricAlgebraLayer):
         self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
                               for i in range(self.algebra.max_degree + 1)]
 
-
     def build(self, input_shape: tf.TensorShape):
         # initialise normalisation parameter assuming first dimension is batch dim
         shape_parameter = input_shape[1:-1].as_list()
@@ -566,7 +575,7 @@ class EquivariantLayerNorm(GeometricAlgebraLayer):
 @keras.saving.register_keras_serializable(package="EquiLayers")
 class EquivariantLinear(GeometricAlgebraLayer):
     """
-    This is an equivariant multivector layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
+    This is an equivariant linear layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
     It does a weighted sum of grades of input multivectors.
 
 
@@ -656,6 +665,53 @@ class EquivariantLinear(GeometricAlgebraLayer):
         # add scalar bias if required
         if self.bias is not None:
             b_geom = self.algebra.from_tensor(self.bias, self.blade_indices_bias)
-            res+= b_geom
+            res += b_geom
 
         return res
+
+
+class EquivariantAttention(GeometricAlgebraLayer):
+    """
+    This is an equivariant attention layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
+    It uses the inner product between multivectors as an attention mechanism.
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        key_dimension: dimension of key (in terms of non-zero values in the multivector) - if left at None, defaults to
+        multivector length
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            key_dimension=None,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # assign key dimension
+        if not key_dimension:
+            self.k_dim = algebra.num_blades
+        else:
+            self.k_dim = key_dimension
+
+        # square root key dimension for dividing
+        self.dividing_constant = tf.sqrt(self.k_dim)
+
+    def build(self, input_shape: tf.TensorShape):
+        self.built = True
+
+    def call(self, queries, keys, values):
+        # compute inner product between queries and keys and take scalar part
+        inner_prod = self.algebra.inner_prod(queries, keys)[..., 0]
+
+        # apply non-linearity (softmax) and divide by constant
+        nl_inner_prod = tf.nn.softmax(inner_prod / self.dividing_constant)
+
+        # multiply nl inner prod with values and return
+        return tf.einsum("...i,...ij->...ij", nl_inner_prod, values)
+
+# TODO: MAKE SELF-ATTENTION LAYER USING EQUILINEARS
+# TODO: MAKE MULTI-HEAD ATTENTION LAYER
