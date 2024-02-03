@@ -59,7 +59,7 @@ def cga_embed_inputs(x, ga):
     :param ga: Geometric Algebra to be used
     :return: tensor embedded into CGA
     """
-    mass_mv = ga.from_tensor_with_kind(x[..., 0], 'scalar')
+    mass_mv = ga.from_scalar(x[..., 0])
     points_mv = embed_points(x[..., 1:4], ga)
     vel_mv = embed_velocities(x[..., 1:4], x[..., 4:7], ga)
 
@@ -74,8 +74,11 @@ def cga_extract_outputs(y, ga):
     :param ga: Geometric Algebra to be used
     :return: tensor extracted from CGA
     """
-    # TODO: IMPLEMENT THIS SENSIBLY - CAN JUST EXTRACT E0, E1, E2 BUT MAY BE A BETTER WAY
-    pass
+    # get blade indices corresponding to points
+    blade_indices = tf.concat([ga.get_blade_indices_of_degree(0), ga.get_blade_indices_of_degree(1)], axis=-1)
+
+    # extract tensor from tfga
+    return tf.gather(y, blade_indices, axis=-1)
 
 
 if __name__ == "__main__":
@@ -84,7 +87,7 @@ if __name__ == "__main__":
     ga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
     a = embed_points(x[..., 1:4], ga)
     b = embed_velocities(x[..., 1:4], x[..., 4:7], ga)
-    print(x[0, 0, :])
-    print(a[0, 0, :])
-    print(b[0, 0, :])
-    print(b.shape)
+    c = cga_embed_inputs(x, ga)
+    d = cga_extract_outputs(c, ga)
+    print(x.shape, c.shape)
+    print(y.shape, d.shape)
