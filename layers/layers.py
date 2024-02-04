@@ -670,9 +670,109 @@ class EquivariantLinear(GeometricAlgebraLayer):
         return res
 
 
+@keras.saving.register_keras_serializable(package="EquiLayers")
+class EquivariantMultiLinear(GeometricAlgebraLayer):
+    """
+    This is a modified equivariant linear layer as described in "Clifford Group Equivariant Neural Networks"
+    (Ruhe et al.), designed to work with mutliple channels.
+    It does a weighted sum of grades of input multivectors.
+
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        activation: Activation function to use
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            units: int,
+            use_bias=True,
+            kernel_initializer="glorot_uniform",
+            bias_initializer="zeros",
+            kernel_regularizer=None,
+            bias_regularizer=None,
+            activity_regularizer=None,
+            kernel_constraint=None,
+            bias_constraint=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # separate blade indices of each grade
+        ones = tf.ones(self.algebra.num_blades)
+        self.input_grades = tf.stack([self.algebra.keep_blades(ones, self.algebra.get_blade_indices_of_degree(i))
+                                      for i in range(self.algebra.max_degree + 1)])
+
+        # get number of bases of each grade
+        self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
+                              for i in range(self.algebra.max_degree + 1)]
+
+        # use scalar bias only for equivariance
+        if use_bias:
+            blade_indices_bias = self.algebra.get_kind_blade_indices('scalar')
+            self.blade_indices_bias = tf.convert_to_tensor(
+                blade_indices_bias, dtype_hint=tf.int64
+            )
+
+        self.units = units
+        self.use_bias = use_bias
+        self.kernel_initializer = initializers.get(kernel_initializer)
+        self.bias_initializer = initializers.get(bias_initializer)
+        self.kernel_regularizer = regularizers.get(kernel_regularizer)
+        self.bias_regularizer = regularizers.get(bias_regularizer)
+        self.kernel_constraint = constraints.get(kernel_constraint)
+        self.bias_constraint = constraints.get(bias_constraint)
+
+    def build(self, input_shape: tf.TensorShape):
+        self.num_input_units = input_shape[-2]
+        self.num_channels = input_shape[-3]
+        shape_kernel = [
+            self.num_channels,
+            self.units,
+            self.num_input_units,
+            self.algebra.max_degree + 1,
+        ]
+        self.kernel = self.add_weight(
+            "kernel",
+            shape=shape_kernel,
+            initializer=self.kernel_initializer,
+            regularizer=self.kernel_regularizer,
+            constraint=self.kernel_constraint,
+            dtype=self.dtype,
+            trainable=True,
+        )
+        if self.use_bias:
+            shape_bias = [self.num_channels, self.units, 1]
+            self.bias = self.add_weight(
+                "bias",
+                shape=shape_bias,
+                initializer=self.bias_initializer,
+                regularizer=self.bias_regularizer,
+                constraint=self.bias_constraint,
+                dtype=self.dtype,
+                trainable=True,
+            )
+        self.built = True
+
+    def call(self, inputs):
+        # repeat grade r parts as required for each basis in that grade
+        kernel_repeated = tf.repeat(self.kernel, repeats=self.grade_numbers, axis=-1)
+
+        # multiply kernel with inputs and sum (channels, units, inputs, ga_dim)
+        res = tf.einsum("hijk,...hjk->...hik", kernel_repeated, inputs)
+
+        # add scalar bias if required
+        if self.bias is not None:
+            b_geom = self.algebra.from_tensor(self.bias, self.blade_indices_bias)
+            res += b_geom
+        return res
+
+
 class EquivariantAttention(GeometricAlgebraLayer):
     """
-    This is an equivariant attention layer as described in "Clifford Group Equivariant Neural Networks" (Ruhe et al.).
+    This is an equivariant attention layer as described in "Geometric Algebra Transformer" (Brehmer et al.).
     It uses the inner product between multivectors as an attention mechanism.
 
      Args:
@@ -698,7 +798,7 @@ class EquivariantAttention(GeometricAlgebraLayer):
             self.k_dim = key_dimension
 
         # square root key dimension for dividing
-        self.dividing_constant = tf.sqrt(self.k_dim)
+        self.dividing_constant = self.k_dim ** 0.5
 
     def build(self, input_shape: tf.TensorShape):
         self.built = True
@@ -713,5 +813,68 @@ class EquivariantAttention(GeometricAlgebraLayer):
         # multiply nl inner prod with values and return
         return tf.einsum("...i,...ij->...ij", nl_inner_prod, values)
 
-# TODO: MAKE SELF-ATTENTION LAYER USING EQUILINEARS
-# TODO: MAKE MULTI-HEAD ATTENTION LAYER
+
+class EquivariantSelfAttention(GeometricAlgebraLayer):
+    """
+    This is an equivariant attention layer as described in "Geometric Algebra Transformer" (Brehmer et al.).
+    It uses the inner product between multivectors as an attention mechanism.
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        units_per_head: number of linear units to use in each attention layer (i.e. number of multivectors in each head)
+        output_units: number of output units to be used
+        key_dimension: dimension of key (in terms of non-zero values in the multivector) - if left at None,
+        defaults to multivector length
+        heads: number of heads in attention layer
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            units_per_head,
+            output_units,
+            heads=1,
+            key_dimension=None,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+
+        # define attention layer to be used
+        self.attention = EquivariantAttention(algebra, key_dimension, activity_regularizer)
+
+        # define multi linear layers for query, key, and value projection
+        self.query_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head)
+        self.key_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head)
+        self.value_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head)
+
+        # define final linear layer
+        self.output_linear = EquivariantLinear(algebra, output_units)
+
+        # store number of heads and number of units per head
+        self.units_per_head = units_per_head
+        self.heads = heads
+
+    def build(self, input_shape: tf.TensorShape):
+        self.pre_linear_output_shape = tf.concat([[-1], [self.heads * self.units_per_head], [input_shape[-1]]], axis=0)
+        self.built = True
+
+    def call(self, inputs):
+        # repeat inputs to expand into number of heads
+        inputs_repeated = tf.repeat(tf.expand_dims(inputs, -3), self.heads, axis=-3)
+
+        # use multi-linear layer
+        queries = self.query_multi_linear(inputs_repeated)
+        keys = self.key_multi_linear(inputs_repeated)
+        values = self.value_multi_linear(inputs_repeated)
+
+        # call attention layer on queries, keys and values
+        attention_heads = self.attention(queries, keys, values)
+
+        # reshape from (batch, heads, units_per_head, ga_dimension) to (batch, heads x units_per_head, ga_dimension)
+        concatenated_heads = tf.reshape(attention_heads, shape=self.pre_linear_output_shape)
+
+        # apply linear layer and return output
+        return self.output_linear(concatenated_heads)
