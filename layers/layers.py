@@ -770,6 +770,7 @@ class EquivariantMultiLinear(GeometricAlgebraLayer):
         return res
 
 
+@keras.saving.register_keras_serializable(package="EquiLayers")
 class EquivariantAttention(GeometricAlgebraLayer):
     """
     This is an equivariant attention layer as described in "Geometric Algebra Transformer" (Brehmer et al.).
@@ -814,6 +815,7 @@ class EquivariantAttention(GeometricAlgebraLayer):
         return tf.einsum("...i,...ij->...ij", nl_inner_prod, values)
 
 
+@keras.saving.register_keras_serializable(package="EquiLayers")
 class EquivariantSelfAttention(GeometricAlgebraLayer):
     """
     This is an equivariant attention layer as described in "Geometric Algebra Transformer" (Brehmer et al.).
@@ -835,6 +837,13 @@ class EquivariantSelfAttention(GeometricAlgebraLayer):
             output_units,
             heads=1,
             key_dimension=None,
+            use_bias=True,
+            kernel_initializer="glorot_uniform",
+            bias_initializer="zeros",
+            kernel_regularizer=None,
+            bias_regularizer=None,
+            kernel_constraint=None,
+            bias_constraint=None,
             activity_regularizer=None,
             **kwargs
     ):
@@ -846,9 +855,32 @@ class EquivariantSelfAttention(GeometricAlgebraLayer):
         self.attention = EquivariantAttention(algebra, key_dimension, activity_regularizer)
 
         # define multi linear layers for query, key, and value projection
-        self.query_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head)
-        self.key_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head)
-        self.value_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head)
+        self.query_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head, use_bias=use_bias,
+                                                         kernel_initializer=kernel_initializer,
+                                                         bias_initializer=bias_initializer,
+                                                         kernel_regularizer=kernel_regularizer,
+                                                         bias_regularizer=bias_regularizer,
+                                                         activity_regularizer=activity_regularizer,
+                                                         kernel_constraint=kernel_constraint,
+                                                         bias_constraint=bias_constraint)
+
+        self.key_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head, use_bias=use_bias,
+                                                       kernel_initializer=kernel_initializer,
+                                                       bias_initializer=bias_initializer,
+                                                       kernel_regularizer=kernel_regularizer,
+                                                       bias_regularizer=bias_regularizer,
+                                                       activity_regularizer=activity_regularizer,
+                                                       kernel_constraint=kernel_constraint,
+                                                       bias_constraint=bias_constraint)
+
+        self.value_multi_linear = EquivariantMultiLinear(algebra, units=units_per_head, use_bias=use_bias,
+                                                         kernel_initializer=kernel_initializer,
+                                                         bias_initializer=bias_initializer,
+                                                         kernel_regularizer=kernel_regularizer,
+                                                         bias_regularizer=bias_regularizer,
+                                                         activity_regularizer=activity_regularizer,
+                                                         kernel_constraint=kernel_constraint,
+                                                         bias_constraint=bias_constraint)
 
         # define final linear layer
         self.output_linear = EquivariantLinear(algebra, output_units)
@@ -878,3 +910,50 @@ class EquivariantSelfAttention(GeometricAlgebraLayer):
 
         # apply linear layer and return output
         return self.output_linear(concatenated_heads)
+
+
+class EquivariantGP(GeometricAlgebraLayer):
+    """
+    This is an equivariant geometric product layer. It takes the multivector inputs, projects them using equilinear
+    layers, then takes the geometric product of the result and outputs the result
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        units: number of linear units to use in the equilinear layer (and number of output multivectors)
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            units: int,
+            use_bias=True,
+            kernel_initializer="glorot_uniform",
+            bias_initializer="zeros",
+            kernel_regularizer=None,
+            bias_regularizer=None,
+            activity_regularizer=None,
+            kernel_constraint=None,
+            bias_constraint=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # define linear layers
+        self.linear1 = EquivariantLinear(algebra, units, use_bias, kernel_initializer, bias_initializer,
+                                         kernel_regularizer, bias_regularizer, activity_regularizer, kernel_constraint,
+                                         bias_constraint)
+        self.linear2 = EquivariantLinear(algebra, units, use_bias, kernel_initializer, bias_initializer,
+                                         kernel_regularizer, bias_regularizer, activity_regularizer, kernel_constraint,
+                                         bias_constraint)
+
+    def build(self, input_shape: tf.TensorShape):
+        self.built = True
+
+    def call(self, inputs):
+        # apply linear layers to inputs
+        x = self.linear1(inputs)
+        y = self.linear2(inputs)
+
+        # compute geometric product between x and y and return
+        return self.algebra.geom_prod(x, y)
