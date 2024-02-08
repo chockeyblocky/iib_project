@@ -49,7 +49,7 @@ def embed_velocities(points, vels, ga):
     cga_vecs = ga.from_tensor(vels, ga.get_blade_indices_of_degree(1)[:3])
 
     # sum and return tf tensor corresponding to final embedding
-    return cga_vecs + 0.5 * tf.einsum("j,...i->...ij", n, inner_prod)
+    return ga.dual(cga_vecs + 0.5 * tf.einsum("j,...i->...ij", n, inner_prod))  # TODO CHECK THIS WORKS
 
 
 def cga_embed_inputs(x, ga):

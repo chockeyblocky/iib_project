@@ -3,14 +3,15 @@
 
 import tensorflow as tf
 import numpy as np
-from layers.layers import EquivariantAttention, EquivariantSelfAttention
+from layers.layers import EquivariantAttention, EquivariantSelfAttention, EquivariantTransformerBlock
 from tfga import GeometricAlgebra
 
 ga = GeometricAlgebra(metric=[1, 1])
 
 attn = EquivariantAttention(ga)
 
-q = tf.constant([[[1., 2., 3., 4.], [7., 6., 4., 2.]], [[1., 2., 3., 4.], [7., 6., 4., 2.]]])
+
+q = tf.constant([[[1., 2., 3., 0.], [7., 6., 4., 0.]], [[1., 2., 3., 0.], [7., 6., 4., 0.]]])
 k = tf.constant([[[1., 2., 3., 4.], [7., 6., 4., 2.]], [[1., 2., 3., 4.], [7., 6., 4., 2.]]])
 v = tf.constant([[[1., 2., 3., 4.], [7., 6., 4., 2.]], [[1., 2., 3., 4.], [7., 6., 4., 2.]]])
 
@@ -34,3 +35,9 @@ q2 = tf.constant([[[1., 2., 3., 4.], [7., 6., 4., 2.]]])
 
 b = selfattn(q2)
 print(b.shape)
+
+transformer = EquivariantTransformerBlock(ga, 10, 4, 2, heads=3)
+
+y = transformer(q)
+
+print(y)
