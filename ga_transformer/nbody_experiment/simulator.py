@@ -55,7 +55,7 @@ class NBodySimulator:
 
     def __init__(
         self,
-        time=0.1,
+        time=1,  # changed time from 0.1 to 1
         time_steps=100,
         star_mass_range=(1.0, 10.0),
         planet_mass_range=(0.01, 0.1),

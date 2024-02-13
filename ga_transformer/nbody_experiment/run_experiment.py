@@ -7,7 +7,7 @@ This has been adapted to use TensorFlow for academic purposes.
 import tensorflow as tf
 import numpy as np
 import pickle
-import tensorflow_datasets as tfds
+from nbody_model import mlp_model, cga_transformer_model
 
 # set random seed
 tf.random.set_seed(0)
@@ -59,38 +59,13 @@ def load_data(filename, subsample=None, keep_trajectories=False):
 def create_dataset(dataset_name):
     """
     Creates tf dataset for training.
-    :param dataset_name: type of dataset (e.g. "train")
+    :param dataset_name: type of dataset (e.g. "01_seconds_100_steps/train")
     :return: tf dataset
     """
     full_path = PATH + "datasets/" + dataset_name + ".npz"
     x, y, trajectories = load_data(full_path)
 
     return tf.data.Dataset.from_tensor_slices((x, y))
-
-
-def mlp_model():
-    """
-    Creates a basic MLP model for use in the n-body modelling problem.
-    :return: MLP model
-    """
-    # define model layers and instantiate model
-    model = tf.keras.Sequential([
-        tf.keras.Input(shape=(4, 7,)),
-        tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(50, activation='relu'),
-        tf.keras.layers.Dense(50, activation='relu'),
-        tf.keras.layers.Dense(25, activation='relu'),
-        tf.keras.layers.Dense(12),
-        tf.keras.layers.Reshape((4, 3))
-    ])
-
-    learning_rate = 1e-4
-
-    # compile the model
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
-                  loss=tf.keras.losses.mean_squared_error)
-
-    return model
 
 
 def save_model(name, model):
@@ -100,7 +75,7 @@ def save_model(name, model):
     :param model: TensorFlow model to save
     :return:
     """
-    with open('{}.pkl'.format(name), 'wb') as f:
+    with open(PATH + 'models/{}.pkl'.format(name), 'wb') as f:
         pickle.dump(model.get_weights(), f)
 
 
@@ -148,7 +123,7 @@ def training_loop(model, dataset):
     :param dataset: training dataset
     :return:
     """
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3)
     epochs = 100
 
     for epoch in range(epochs):
@@ -184,14 +159,14 @@ def main():
     Main function to run.
     :return:
     """
-    ds_train = create_dataset("train")
-    ds_val = create_dataset("val")
-    model = mlp_model()
+    ds_train = create_dataset("01_seconds_100_steps/train")
+    ds_val = create_dataset("01_seconds_100_steps/val")
+    model = cga_transformer_model()
     model.summary()
 
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
-    batch_size = 100
-    num_epochs = 10
+    batch_size = 64  # batch size chosen as in config of gatr GitHub
+    num_epochs = 50
 
     ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
     ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
@@ -201,18 +176,9 @@ def main():
                             validation_data=ds_val_batch,
                             epochs=num_epochs,
                             callbacks=es_callback)
-    # model_train = model.fit(x=x, y=y,
-    #                         validation_data=(xval, yval),
-    #                         epochs=num_epochs,
-    #                         batch_size=100,
-    #                         callbacks=es_callback)
 
-    # debugging training loop
-    # for element in ds_train_batch.take(1):
-    #     print(model(element[0]))
-    #     print(get_grads(model, element[0], element[1]))
-
-    # training_loop(model, ds_train_batch)
+    # save model
+    save_model('nbody_cga_transformer', model)
 
 
 if __name__ == "__main__":
