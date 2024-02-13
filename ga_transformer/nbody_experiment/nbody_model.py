@@ -52,11 +52,11 @@ def mlp_model():
         tf.keras.layers.Reshape((4, 3))
     ])
 
-    initial_learning_rate = 2e-3
+    initial_learning_rate = 3e-4
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate,
         decay_steps=1000,
-        decay_rate=0.98,
+        decay_rate=0.99,
         staircase=True)
 
     # compile the model

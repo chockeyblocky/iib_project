@@ -118,7 +118,7 @@ def train(model, x, y, optimizer):
 
 def training_loop(model, dataset):
     """
-    Full training loop
+    Full training loop used for debugging.
     :param model: model to train
     :param dataset: training dataset
     :return:
@@ -130,15 +130,11 @@ def training_loop(model, dataset):
         for element in dataset:
             x = element[0]
             y = element[1]
-            print(x.shape)
-            print(y.shape)
-            print(model(x).shape)
+            print(model(x))
+
             # Update the model with the single giant batch
             train(model, x, y, optimizer)
 
-            # Track this before I update
-            # weights.append(model.w.numpy())
-            # biases.append(model.b.numpy())
             mse = custom_mse(y, model(x))
             print(mse)
 
@@ -165,11 +161,13 @@ def main():
     model.summary()
 
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
-    batch_size = 64  # batch size chosen as in config of gatr GitHub
+    batch_size = 1  # batch size chosen as in config of gatr GitHub
     num_epochs = 50
 
     ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
     ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
+
+    training_loop(model, ds_train_batch)
 
     # training
     model_train = model.fit(ds_train_batch,

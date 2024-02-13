@@ -17,8 +17,8 @@ class CGATransformer(tf.keras.Model):
         """
         super().__init__()
         # define transformer block
-        self.transformer_block = EquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=5,
-                                                             hidden_units=10, heads=5, output_units=n_bodies)
+        self.transformer_block = EquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=1,
+                                                             hidden_units=3, heads=3, output_units=n_bodies)
         # define algebra instance
         self.ga = geometric_algebra
 
