@@ -626,7 +626,7 @@ class EquivariantStableLayerNorm(GeometricAlgebraLayer):
     def call(self, inputs):
         # get norms from quadratic form - for stable layer norm, take geometric product over entire mv
         quad_form = self.algebra.geom_prod(inputs, self.algebra.reversion(inputs))[..., 0]
-        norm = tf.math.sqrt(quad_form + 1.0e-12)  # added constant for stability in gradient
+        norm = tf.math.sqrt(tf.math.abs(quad_form + 1.0e-12))  # added constant for stability in gradient
 
         # apply sigmoid
         s_a = tf.sigmoid(self.parameter)
