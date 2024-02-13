@@ -74,6 +74,7 @@ if __name__ == "__main__":
     n = ga.e3 + ga.e4
     print(ga.e(["3"]))
     print(n)
+    print(ga.blade_mvs[4] + ga.blade_mvs[5])
     # a = embed_points(x[..., 1:4], ga)
     # b = embed_velocities(x[..., 1:4], x[..., 4:7], ga)
     # c = cga_embed_inputs(x, ga)

@@ -33,8 +33,10 @@ class CGATransformer(tf.keras.Model):
         points_norm = tf.reduce_sum(points ** 2, axis=-1)
 
         # get n and n_bar from ga instance - expecting signature [1, 1, 1, 1, -1]
-        n = self.ga.e(["3"]) + self.ga.e(["4"])
-        n_bar = self.ga.e3 - self.ga.e4
+        # bug in tfga - assertion causes failure upon trying to train when doing ga.ex - this is why method is
+        # convoluted
+        n = self.ga.blade_mvs[4] + self.ga.blade_mvs[5]
+        n_bar = self.ga.blade_mvs[4] - self.ga.blade_mvs[5]
 
         # get basic vector embedding
         cga_vecs = self.ga.from_tensor(points, self.ga.get_blade_indices_of_degree(1)[:3])
@@ -55,7 +57,7 @@ class CGATransformer(tf.keras.Model):
         inner_prod = tf.reduce_sum(points * vels, axis=-1)
 
         # get n from ga instance - expecting signature [1, 1, 1, 1, -1]
-        n = self.ga.e3 + self.ga.e4
+        n = self.ga.blade_mvs[4] + self.ga.blade_mvs[5]
 
         # get basic vector embedding
         cga_vecs = self.ga.from_tensor(vels, self.ga.get_blade_indices_of_degree(1)[:3])
