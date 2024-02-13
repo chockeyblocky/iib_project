@@ -6,6 +6,11 @@ This has been adapted to use TensorFlow for academic purposes.
 
 import tensorflow as tf
 import numpy as np
+import pickle
+import tensorflow_datasets as tfds
+
+# set random seed
+tf.random.set_seed(0)
 
 # define path to dataset
 PATH = "C:/Users/Christian/Documents/Coursework/iib_project/ga_transformer/"
@@ -68,33 +73,110 @@ def mlp_model():
     Creates a basic MLP model for use in the n-body modelling problem.
     :return: MLP model
     """
-    # define input shape
-    x = tf.keras.Input(shape=(4, 7,))
-
     # define model layers and instantiate model
-    layers = tf.keras.Sequential([
-        tf.keras.layers.Reshape((-1, 28)),
-        tf.keras.layers.Dense(10, activation='relu'),
-        tf.keras.layers.Dense(5, activation='relu'),
+    model = tf.keras.Sequential([
+        tf.keras.Input(shape=(4, 7,)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dense(50, activation='relu'),
+        tf.keras.layers.Dense(50, activation='relu'),
+        tf.keras.layers.Dense(25, activation='relu'),
         tf.keras.layers.Dense(12),
-        tf.keras.layers.Reshape((-1, 4, 3))
+        tf.keras.layers.Reshape((4, 3))
     ])
 
-    y = layers(x)
-    model = tf.keras.Model(x, y)
-
-    initial_learning_rate = 1e-4
-    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate,
-        decay_steps=100,
-        decay_rate=0.98,
-        staircase=True)
+    learning_rate = 1e-4
 
     # compile the model
-    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
-                  loss=tf.keras.losses.mean_squared_error, run_eagerly=True)
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate),
+                  loss=tf.keras.losses.mean_squared_error)
 
     return model
+
+
+def save_model(name, model):
+    """
+    Saves model weights as .pkl files
+    :param name: String under which to save model
+    :param model: TensorFlow model to save
+    :return:
+    """
+    with open('{}.pkl'.format(name), 'wb') as f:
+        pickle.dump(model.get_weights(), f)
+
+
+def get_grads(model, x, y):
+    """
+    Gets the training gradients from a single sample.
+    :param model: model to apply
+    :param x: input data
+    :param y: output data
+    :return: gradients of trainable weights
+    """
+    with tf.GradientTape() as tape:
+        # Trainable variables are automatically tracked by GradientTape
+        loss = tf.keras.losses.mean_squared_error(y, model(x))
+
+    # Use GradientTape to calculate the gradients with respect to weights
+    grads = tape.gradient(loss, model.trainable_weights)
+
+    return grads
+
+
+def train(model, x, y, optimizer):
+    """
+    Applies the training gradients from a single batch.
+    :param model: model to apply
+    :param x: input data
+    :param y: output data
+    :param optimizer: optimizer to be used
+    :return:
+    """
+    with tf.GradientTape() as tape:
+        # Trainable variables are automatically tracked by GradientTape
+        loss = tf.keras.losses.mean_squared_error(y, model(x))
+
+    # Use GradientTape to calculate the gradients with respect to weights
+    grads = tape.gradient(loss, model.trainable_weights)
+
+    optimizer.apply_gradients(zip(grads, model.trainable_weights))
+
+
+def training_loop(model, dataset):
+    """
+    Full training loop
+    :param model: model to train
+    :param dataset: training dataset
+    :return:
+    """
+    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+    epochs = 100
+
+    for epoch in range(epochs):
+        for element in dataset:
+            x = element[0]
+            y = element[1]
+            print(x.shape)
+            print(y.shape)
+            print(model(x).shape)
+            # Update the model with the single giant batch
+            train(model, x, y, optimizer)
+
+            # Track this before I update
+            # weights.append(model.w.numpy())
+            # biases.append(model.b.numpy())
+            mse = custom_mse(y, model(x))
+            print(mse)
+
+        print("Epoch", epoch)
+        print(mse)
+
+
+def custom_mse(y_true, y_pred):
+    """
+    Define custom mean squared error loss function.
+    :return: mse
+    """
+    return tf.reduce_mean(tf.reduce_mean(tf.square(y_true - y_pred), axis=-1), axis=-1)
 
 
 def main():
@@ -109,16 +191,28 @@ def main():
 
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
     batch_size = 100
-    num_epochs = 100
+    num_epochs = 10
 
-    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
-    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
+    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
+    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
 
     # training
     model_train = model.fit(ds_train_batch,
                             validation_data=ds_val_batch,
                             epochs=num_epochs,
                             callbacks=es_callback)
+    # model_train = model.fit(x=x, y=y,
+    #                         validation_data=(xval, yval),
+    #                         epochs=num_epochs,
+    #                         batch_size=100,
+    #                         callbacks=es_callback)
+
+    # debugging training loop
+    # for element in ds_train_batch.take(1):
+    #     print(model(element[0]))
+    #     print(get_grads(model, element[0], element[1]))
+
+    # training_loop(model, ds_train_batch)
 
 
 if __name__ == "__main__":
