@@ -571,6 +571,74 @@ class EquivariantLayerNorm(GeometricAlgebraLayer):
         interpolated_norm_repeated = tf.repeat(interpolated_norm, repeats=self.grade_numbers, axis=-1)
         return inputs / (interpolated_norm_repeated + 1e-12)
 
+class EquivariantStableLayerNorm(GeometricAlgebraLayer):
+    """
+    This layer uses an equivariant mapping scheme to normalise multivectors without by dividing all elements by the
+    quadratic form.
+
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        activation: Activation function to use
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            parameter_initializer="ones",
+            parameter_regularizer=None,
+            parameter_constraint=None,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # define parameter initialisation
+        self.parameter_initializer = initializers.get(parameter_initializer)
+        self.parameter_regularizer = regularizers.get(parameter_regularizer)
+        self.parameter_constraint = constraints.get(parameter_constraint)
+        ones = tf.ones(self.algebra.num_blades)
+
+        # separate blade indices of each grade
+        self.input_grades = tf.stack([self.algebra.keep_blades(ones, self.algebra.get_blade_indices_of_degree(i))
+                                      for i in range(self.algebra.max_degree + 1)])
+
+        # get number of bases of each grade
+        self.grade_numbers = [len(self.algebra.get_blade_indices_of_degree(i))
+                              for i in range(self.algebra.max_degree + 1)]
+
+    def build(self, input_shape: tf.TensorShape):
+        # initialise normalisation parameter assuming first dimension is batch dim
+        shape_parameter = input_shape[1:-1].as_list()
+        shape_parameter.append(self.algebra.max_degree.numpy() + 1)
+        self.parameter = self.add_weight(
+            "parameter",
+            shape=shape_parameter,
+            initializer=self.parameter_initializer,
+            regularizer=self.parameter_regularizer,
+            constraint=self.parameter_constraint,
+            dtype=self.dtype,
+            trainable=True,
+        )
+        self.built = True
+
+    def call(self, inputs):
+        # get norms from quadratic form - for stable layer norm, take geometric product over entire mv
+        quad_form = self.algebra.geom_prod(inputs, self.algebra.reversion(inputs))[..., 0]
+        norm = tf.math.sqrt(quad_form + 1.0e-12)  # added constant for stability in gradient
+
+        # apply sigmoid
+        s_a = tf.sigmoid(self.parameter)
+
+        # interpolate between 1 and the norm
+        interpolated_norm = tf.einsum("...ij,...i->...ij", s_a, (norm - 1)) + 1
+
+        # repeat for division
+        interpolated_norm_repeated = tf.repeat(interpolated_norm, repeats=self.grade_numbers, axis=-1)
+        return inputs / (interpolated_norm_repeated + 1e-12)
+
+
 
 @keras.saving.register_keras_serializable(package="EquiLayers")
 class EquivariantLinear(GeometricAlgebraLayer):
@@ -1004,21 +1072,22 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
         # linear layer (end of attention block)
         self.linear1 = EquivariantLinear(algebra, units=output_units)
 
-        # layer norm (beginning of feed-forward block)
-        self.layer_norm = EquivariantLayerNorm(algebra)
+        # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
+        self.layer_norm = EquivariantStableLayerNorm(algebra)
 
         # geometric product layer
         self.gp_linear2 = EquivariantGP(algebra, hidden_units)
 
         # non-linear layer (using scalar part for stability)
-        self.non_linear = EquivariantNonLinear(algebra, activation=non_linear_activation)
+        self.non_linear = EquivariantNonLinear(algebra, activation=non_linear_activation, method='scalar')
 
         # linear layer (end of transformer, return to original shape) - TODO try using rotor convolution layer
         self.linear2 = EquivariantLinear(algebra, output_units)
 
         # define sequential attention block and feed-forward block
-        self.attention_block = tf.keras.Sequential([self.gp_linear1, self.multi_head_attention, self.linear1])
-        self.feed_forward_block = tf.keras.Sequential([self.layer_norm, self.gp_linear2, self.non_linear, self.linear2])
+        # self.attention_block = tf.keras.Sequential([self.gp_linear1, self.multi_head_attention, self.linear1])
+        # self.feed_forward_block = tf.keras.Sequential([self.layer_norm, self.gp_linear2, self.non_linear,
+        # self.linear2])
 
     def build(self, input_shape: tf.TensorShape):
         if self.num_multivectors != input_shape[-2]:
@@ -1027,10 +1096,18 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
 
     def call(self, inputs):
         # initial attention block + residual connection
-        residual_1 = self.attention_block(inputs) + inputs
+        x = self.gp_linear1(inputs)
+        x = self.multi_head_attention(x)
+        x = self.linear1(x)
+        residual = x + inputs
 
-        # feed-forward block + residual connection and return
-        return self.feed_forward_block(residual_1) + residual_1
+        # feed-forward block + residual connection
+        x = self.layer_norm(residual)
+        x = self.gp_linear2(x)
+        x = self.non_linear(x)
+        x = self.linear2(x)
+
+        return x + residual
 
 
 # TODO: implement transformer block - maybe put it in its own .py file for the n body experiment
