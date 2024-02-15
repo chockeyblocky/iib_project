@@ -3,22 +3,29 @@ This will contain the class implementation of the CGA transformer used in the NB
 """
 
 import tensorflow as tf
-from layers.layers import EquivariantTransformerBlock
+from layers.layers import EquivariantTransformerBlock, EquivariantLinear
 
 
 class CGATransformer(tf.keras.Model):
     """
     This will define a transformer which uses CGA to make geometric predictions for an n-body dynamics problem.
     """
-    def __init__(self, geometric_algebra, n_bodies):
+
+    def __init__(self, geometric_algebra, n_bodies, n_blocks):
         """
         :param geometric_algebra: Instance of CGA
         :param n_bodies: number of bodies to make predictions about
+        :param n_blocks: number of transformer blocks to add to the network
         """
         super().__init__()
-        # define transformer block
-        self.transformer_block = EquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=1,
-                                                             hidden_units=3, heads=3, output_units=n_bodies)
+        # define transformer net
+        self.transformer_net = tf.keras.Sequential(name='transformer_blocks')
+        for i in range(n_blocks):
+            self.transformer_net.add(EquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=2,
+                                                                 hidden_units=4, heads=4, output_units=n_bodies))
+
+        # TODO test rotor layer at output
+        self.output_linear = EquivariantLinear(algebra=geometric_algebra, units=n_bodies)
         # define algebra instance
         self.ga = geometric_algebra
 
@@ -90,5 +97,6 @@ class CGATransformer(tf.keras.Model):
 
     def call(self, inputs):
         embedded_inputs = self.cga_embed_inputs(inputs)
-        transformed_inputs = self.transformer_block(embedded_inputs)
-        return self.cga_extract_outputs(transformed_inputs)
+        transformed_inputs = self.transformer_net(embedded_inputs)
+        linear_outputs = self.output_linear(transformed_inputs)
+        return self.cga_extract_outputs(linear_outputs)

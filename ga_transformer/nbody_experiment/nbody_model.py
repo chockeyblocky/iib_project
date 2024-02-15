@@ -17,7 +17,7 @@ def cga_transformer_model(num_bodies=4):
     cga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
 
     # instantiate model
-    model = CGATransformer(geometric_algebra=cga, n_bodies=num_bodies)
+    model = CGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=2)
 
     initial_learning_rate = 2e-3
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -52,7 +52,7 @@ def mlp_model():
         tf.keras.layers.Reshape((4, 3))
     ])
 
-    initial_learning_rate = 3e-4
+    initial_learning_rate = 1e-3
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate,
         decay_steps=1000,

@@ -1062,15 +1062,15 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
         )
         self.num_multivectors = output_units
 
+        # linear layer before residual connection
+        self.linear1 = EquivariantLinear(algebra, units=output_units)
+
         # initial linear layer - geometric product allows mixing before attention layer
         self.gp_linear1 = EquivariantGP(algebra, hidden_units)
 
-        # multi head attention
-        self.multi_head_attention = EquivariantSelfAttention(algebra, units_per_head, hidden_units, heads,
+        # multi head attention - includes linear layer at the end of attention block
+        self.multi_head_attention = EquivariantSelfAttention(algebra, units_per_head, output_units, heads,
                                                              key_dimension=key_dimension)
-
-        # linear layer (end of attention block)
-        self.linear1 = EquivariantLinear(algebra, units=output_units)
 
         # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
         self.layer_norm = EquivariantStableLayerNorm(algebra)
@@ -1096,18 +1096,19 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
 
     def call(self, inputs):
         # initial attention block + residual connection
-        x = self.gp_linear1(inputs)
+        residual_1 = inputs
+        x = self.gp_linear1(residual_1)
         x = self.multi_head_attention(x)
         x = self.linear1(x)
-        residual = x + inputs
+        residual_2 = x + residual_1
 
         # feed-forward block + residual connection
-        x = self.layer_norm(residual)
+        x = self.layer_norm(residual_2)
         x = self.gp_linear2(x)
         x = self.non_linear(x)
         x = self.linear2(x)
 
-        return x + residual
+        return x + residual_2
 
 
 # TODO: implement transformer block - maybe put it in its own .py file for the n body experiment

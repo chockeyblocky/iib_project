@@ -3,7 +3,8 @@
 
 import tensorflow as tf
 import numpy as np
-from layers.layers import EquivariantAttention, EquivariantSelfAttention, EquivariantTransformerBlock
+from layers.layers import EquivariantAttention, EquivariantSelfAttention, EquivariantTransformerBlock, \
+    EquivariantStableLayerNorm, EquivariantLayerNorm
 from tfga import GeometricAlgebra
 
 ga = GeometricAlgebra(metric=[1, 1])
@@ -35,6 +36,16 @@ q2 = tf.constant([[[1., 2., 3., 4.], [7., 6., 4., 2.]]])
 
 b = selfattn(q2)
 print(b.shape)
+
+norm = EquivariantStableLayerNorm(ga)
+
+y = norm(q)
+print(y)
+
+norm = EquivariantLayerNorm(ga)
+
+y = norm(q)
+print(y)
 
 transformer = EquivariantTransformerBlock(ga, 10, 4, 2, heads=3)
 
