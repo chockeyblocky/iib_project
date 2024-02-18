@@ -165,8 +165,10 @@ class ExperimentalCGATransformer(tf.keras.Model):
         # get basic vector embedding
         cga_vecs = self.ga.from_tensor(vels, self.ga.get_blade_indices_of_degree(1)[:3])
 
-        # sum and return tf tensor corresponding to final embedding
-        return self.ga.dual(cga_vecs + 0.5 * tf.einsum("j,...i->...ij", n, inner_prod))
+        # sum and return tf tensor corresponding to final embedding - dual in tfga is incorrectly implemented, so need
+        # to return geometric product with inverse pseudoscalar (which is negative pseudoscalar in this case) - to
+        # invert, just multiply by pseudoscalar
+        return self.ga.geom_prod(cga_vecs + 0.5 * tf.einsum("j,...i->...ij", n, inner_prod), -self.ga.blade_mvs[-1])
 
     def cga_embed_inputs(self, x):
         """

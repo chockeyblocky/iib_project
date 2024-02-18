@@ -1146,32 +1146,24 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
         )
         self.num_multivectors = output_units
 
-        # linear layer before residual connection
-        self.linear1 = EquivariantLinear(algebra, units=output_units)
-
+        # layer norm before attn block
+        # self.layer_norm1 = EquivariantStableLayerNorm(algebra)
         # initial linear layer - geometric product allows mixing before attention layer
         self.gp_linear1 = EquivariantGP(algebra, hidden_units)
-
         # multi head attention - includes linear layer at the end of attention block
         self.multi_head_attention = EquivariantSelfAttention(algebra, units_per_head, output_units, heads,
                                                              key_dimension=key_dimension)
+        # linear layer before residual connection
+        self.linear1 = EquivariantLinear(algebra, units=output_units)
 
         # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
-        self.layer_norm = EquivariantStableLayerNorm(algebra)
-
+        self.layer_norm2 = EquivariantStableLayerNorm(algebra)
         # geometric product layer
         self.gp_linear2 = EquivariantGP(algebra, hidden_units)
-
         # non-linear layer (using scalar part for stability)
         self.non_linear = EquivariantNonLinear(algebra, activation=non_linear_activation, method='scalar')
-
         # linear layer (end of transformer, return to original shape) - TODO try using rotor convolution layer
         self.linear2 = EquivariantLinear(algebra, output_units)
-
-        # define sequential attention block and feed-forward block
-        # self.attention_block = tf.keras.Sequential([self.gp_linear1, self.multi_head_attention, self.linear1])
-        # self.feed_forward_block = tf.keras.Sequential([self.layer_norm, self.gp_linear2, self.non_linear,
-        # self.linear2])
 
     def build(self, input_shape: tf.TensorShape):
         if self.num_multivectors != input_shape[-2]:
@@ -1181,13 +1173,14 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
     def call(self, inputs):
         # initial attention block + residual connection
         residual_1 = inputs
+        # x = self.layer_norm1(residual_1) # ADDED LAYERNORM - EXPERIMENT WITH STABILITY
         x = self.gp_linear1(residual_1)
         x = self.multi_head_attention(x)
         x = self.linear1(x)
         residual_2 = x + residual_1
 
         # feed-forward block + residual connection
-        x = self.layer_norm(residual_2)
+        x = self.layer_norm2(residual_2)
         x = self.gp_linear2(x)
         x = self.non_linear(x)
         x = self.linear2(x)

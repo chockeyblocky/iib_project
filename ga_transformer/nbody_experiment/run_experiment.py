@@ -163,8 +163,8 @@ def main():
     batch_size = 64  # batch size chosen as in config of gatr GitHub
     num_epochs = 50
 
-    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
-    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
+    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
+    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
 
     # training
     model_train = model.fit(ds_train_batch,
