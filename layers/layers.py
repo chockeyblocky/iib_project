@@ -1111,7 +1111,85 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
         return x + residual_2
 
 
-# TODO: implement transformer block - maybe put it in its own .py file for the n body experiment
-# equilinear -> self attention -> residual connection -> equiGP -> equiNL -> equilinear -> residual connection -> out
-# also need to put in some layer norms at various points - think about whether layer norm works still, may need to
-# write it as a x x_tilde product
+class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
+    """
+    This is an Equivariant Transformer Block designed to use CGA to solve geometric prediction problems. It assumes that
+    the desired output shape of the network is equal to the input shape so that residual connections can be used
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        units_per_head: number of linear units to use in each attention layer (i.e. number of multivectors in each head)
+        output_units: output (and input) number of multivectors
+        hidden_units: number of multivectors to use in hidden parts of transformer (i.e. after attention and during
+        feed-forward network)
+        output_units: desired output shape
+        key_dimension: dimension of key (in terms of non-zero values in the multivector) - if left at None,
+        defaults to multivector length
+        heads: number of heads in attention layer
+        non_linear_activation: activation function to use in non-linear part of feed-forward network
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            units_per_head,
+            hidden_units,
+            output_units,
+            heads=1,
+            non_linear_activation='gelu',
+            key_dimension=None,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        self.num_multivectors = output_units
+
+        # linear layer before residual connection
+        self.linear1 = EquivariantLinear(algebra, units=output_units)
+
+        # initial linear layer - geometric product allows mixing before attention layer
+        self.gp_linear1 = EquivariantGP(algebra, hidden_units)
+
+        # multi head attention - includes linear layer at the end of attention block
+        self.multi_head_attention = EquivariantSelfAttention(algebra, units_per_head, output_units, heads,
+                                                             key_dimension=key_dimension)
+
+        # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
+        self.layer_norm = EquivariantStableLayerNorm(algebra)
+
+        # geometric product layer
+        self.gp_linear2 = EquivariantGP(algebra, hidden_units)
+
+        # non-linear layer (using scalar part for stability)
+        self.non_linear = EquivariantNonLinear(algebra, activation=non_linear_activation, method='scalar')
+
+        # linear layer (end of transformer, return to original shape) - TODO try using rotor convolution layer
+        self.linear2 = EquivariantLinear(algebra, output_units)
+
+        # define sequential attention block and feed-forward block
+        # self.attention_block = tf.keras.Sequential([self.gp_linear1, self.multi_head_attention, self.linear1])
+        # self.feed_forward_block = tf.keras.Sequential([self.layer_norm, self.gp_linear2, self.non_linear,
+        # self.linear2])
+
+    def build(self, input_shape: tf.TensorShape):
+        if self.num_multivectors != input_shape[-2]:
+            raise Exception('Input shape not equal to output_units')
+        self.built = True
+
+    def call(self, inputs):
+        # initial attention block + residual connection
+        residual_1 = inputs
+        x = self.gp_linear1(residual_1)
+        x = self.multi_head_attention(x)
+        x = self.linear1(x)
+        residual_2 = x + residual_1
+
+        # feed-forward block + residual connection
+        x = self.layer_norm(residual_2)
+        x = self.gp_linear2(x)
+        x = self.non_linear(x)
+        x = self.linear2(x)
+
+        return x + residual_2

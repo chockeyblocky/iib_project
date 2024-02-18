@@ -7,7 +7,7 @@ This has been adapted to use TensorFlow for academic purposes.
 import tensorflow as tf
 import numpy as np
 import pickle
-from nbody_model import mlp_model, cga_transformer_model
+from nbody_model import mlp_model, cga_transformer_model, experimental_cga_transformer_model
 
 # set random seed
 tf.random.set_seed(0)
@@ -156,15 +156,15 @@ def main():
     """
     ds_train = create_dataset("01_seconds_100_steps/train")
     ds_val = create_dataset("01_seconds_100_steps/val")
-    model = cga_transformer_model()
+    model = experimental_cga_transformer_model()
     model.summary()
 
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
     batch_size = 64  # batch size chosen as in config of gatr GitHub
     num_epochs = 50
 
-    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
-    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
+    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
+    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=True).batch(batch_size)
 
     # training
     model_train = model.fit(ds_train_batch,
@@ -173,7 +173,7 @@ def main():
                             callbacks=es_callback)
 
     # save model
-    save_model('nbody_cga_transformer', model)
+    save_model('experimental_nbody_cga_transformer', model)
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ This contains the functions which define the GA transformer model.
 
 import tensorflow as tf
 from tfga import GeometricAlgebra
-from nbody_cga_transformer import CGATransformer
+from nbody_cga_transformer import CGATransformer, ExperimentalCGATransformer
 
 
 def cga_transformer_model(num_bodies=4):
@@ -17,7 +17,35 @@ def cga_transformer_model(num_bodies=4):
     cga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
 
     # instantiate model
-    model = CGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=2)
+    model = CGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=1)
+
+    initial_learning_rate = 2e-3
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=1000,
+        decay_rate=0.98,
+        staircase=True)
+
+    # build the model
+    model.build(input_shape=(None, num_bodies, 7))
+
+    # compile the model
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=lr_schedule),
+                  loss=tf.keras.losses.mean_squared_error)
+
+    return model
+
+def experimental_cga_transformer_model(num_bodies=4):
+    """
+    Creates a transformer which uses CGA to solve geometric problems.
+    :param num_bodies: number of bodies used in simulation
+    :return: CGA transformer
+    """
+    # define geometric algebra instance - CGA
+    cga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
+
+    # instantiate model
+    model = ExperimentalCGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=1)
 
     initial_learning_rate = 2e-3
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
