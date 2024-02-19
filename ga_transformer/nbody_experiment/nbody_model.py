@@ -45,7 +45,7 @@ def experimental_cga_transformer_model(num_bodies=4):
     cga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
 
     # instantiate model
-    model = ExperimentalCGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=1)
+    model = ExperimentalCGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=2)
 
     initial_learning_rate = 2e-3
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(

@@ -571,9 +571,11 @@ class EquivariantLayerNorm(GeometricAlgebraLayer):
         interpolated_norm_repeated = tf.repeat(interpolated_norm, repeats=self.grade_numbers, axis=-1)
         return inputs / (interpolated_norm_repeated + 1e-12)
 
+
+@keras.saving.register_keras_serializable(package="EquiLayers")
 class EquivariantStableLayerNorm(GeometricAlgebraLayer):
     """
-    This layer uses an equivariant mapping scheme to normalise multivectors without by dividing all elements by the
+    This layer uses an equivariant mapping scheme to normalise multivectors by dividing all elements by the
     quadratic form.
 
 
@@ -638,6 +640,44 @@ class EquivariantStableLayerNorm(GeometricAlgebraLayer):
         interpolated_norm_repeated = tf.repeat(interpolated_norm, repeats=self.grade_numbers, axis=-1)
         return inputs / (interpolated_norm_repeated + 1e-12)
 
+
+@keras.saving.register_keras_serializable(package="EquiLayers")
+class EquivariantMeanLayerNorm(GeometricAlgebraLayer):
+    """
+    This layer uses an equivariant mapping scheme to normalise multivectors by dividing all elements by the average of
+    abs(x * ~x) over the layer dimension. Assumes tensor input with shape (batch, num_mv, mv_dim).
+
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        activation: Activation function to use
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            activity_regularizer=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+
+    def build(self, input_shape: tf.TensorShape):
+        self.built = True
+
+    def call(self, inputs):
+        # get norms from quadratic form - for stable layer norm, take geometric product over entire mv
+        quad_form = self.algebra.geom_prod(inputs, self.algebra.reversion(inputs))[..., 0]
+        norm = tf.math.reduce_mean(tf.math.sqrt(tf.math.abs(quad_form) + 1.0e-12), axis=-1)  # added
+        # constant for stability in gradient
+
+        # reshape for broadcasted division - assuming input shape (batch, num_mvs, mv_dim)
+        reshaped_norm = tf.reshape(norm, [-1, 1, 1])
+
+        # divide inputs by corresponding batches' layer norm mean
+        # return tf.einsum("i...,i->i...", inputs, 1 / (norm + 1e-12))
+        return inputs / (reshaped_norm + 1.0e-12)
 
 
 @keras.saving.register_keras_serializable(package="EquiLayers")
@@ -1147,7 +1187,7 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
         self.num_multivectors = output_units
 
         # layer norm before attn block
-        # self.layer_norm1 = EquivariantStableLayerNorm(algebra)
+        self.layer_norm1 = EquivariantMeanLayerNorm(algebra)
         # initial linear layer - geometric product allows mixing before attention layer
         self.gp_linear1 = EquivariantGP(algebra, hidden_units)
         # multi head attention - includes linear layer at the end of attention block
@@ -1157,7 +1197,7 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
         self.linear1 = EquivariantLinear(algebra, units=output_units)
 
         # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
-        self.layer_norm2 = EquivariantStableLayerNorm(algebra)
+        self.layer_norm2 = EquivariantMeanLayerNorm(algebra)
         # geometric product layer
         self.gp_linear2 = EquivariantGP(algebra, hidden_units)
         # non-linear layer (using scalar part for stability)
@@ -1173,8 +1213,8 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
     def call(self, inputs):
         # initial attention block + residual connection
         residual_1 = inputs
-        # x = self.layer_norm1(residual_1) # ADDED LAYERNORM - EXPERIMENT WITH STABILITY
-        x = self.gp_linear1(residual_1)
+        x = self.layer_norm1(residual_1)  # ADDED LAYERNORM - EXPERIMENT WITH STABILITY
+        x = self.gp_linear1(x)
         x = self.multi_head_attention(x)
         x = self.linear1(x)
         residual_2 = x + residual_1

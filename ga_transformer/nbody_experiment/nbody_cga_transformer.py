@@ -69,8 +69,10 @@ class CGATransformer(tf.keras.Model):
         # get basic vector embedding
         cga_vecs = self.ga.from_tensor(vels, self.ga.get_blade_indices_of_degree(1)[:3])
 
-        # sum and return tf tensor corresponding to final embedding
-        return self.ga.dual(cga_vecs + 0.5 * tf.einsum("j,...i->...ij", n, inner_prod))  # TODO CHECK THIS WORKS
+        # sum and return tf tensor corresponding to final embedding - dual in tfga is incorrectly implemented, so need
+        # to return geometric product with inverse pseudoscalar (which is negative pseudoscalar in this case) - to
+        # invert, just multiply by pseudoscalar
+        return self.ga.geom_prod(cga_vecs + 0.5 * tf.einsum("j,...i->...ij", n, inner_prod), -self.ga.blade_mvs[-1])
 
     def cga_embed_inputs(self, x):
         """
@@ -117,8 +119,9 @@ class ExperimentalCGATransformer(tf.keras.Model):
         # define transformer net
         self.transformer_net = tf.keras.Sequential(name='transformer_blocks')
         for i in range(n_blocks):
-            self.transformer_net.add(ExperimentalEquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=2,
-                                                                 hidden_units=4, heads=4, output_units=n_bodies))
+            self.transformer_net.add(
+                ExperimentalEquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=2,
+                                                        hidden_units=4, heads=4, output_units=n_bodies))
 
         # TODO test rotor layer at output
         self.output_linear = EquivariantLinear(algebra=geometric_algebra, units=n_bodies)
