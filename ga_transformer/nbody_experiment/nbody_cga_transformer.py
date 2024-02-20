@@ -22,7 +22,8 @@ class CGATransformer(tf.keras.Model):
         self.transformer_net = tf.keras.Sequential(name='transformer_blocks')
         for i in range(n_blocks):
             self.transformer_net.add(EquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=2,
-                                                                 hidden_units=4, heads=4, output_units=n_bodies))
+                                                                 hidden_units=4, heads=4, output_units=n_bodies,
+                                                                 non_linear_activation='sigmoid'))
 
         # TODO test rotor layer at output
         self.output_linear = EquivariantLinear(algebra=geometric_algebra, units=n_bodies)
@@ -121,7 +122,8 @@ class ExperimentalCGATransformer(tf.keras.Model):
         for i in range(n_blocks):
             self.transformer_net.add(
                 ExperimentalEquivariantTransformerBlock(algebra=geometric_algebra, units_per_head=2,
-                                                        hidden_units=4, heads=4, output_units=n_bodies))
+                                                        hidden_units=4, heads=4, output_units=n_bodies,
+                                                        non_linear_activation='sigmoid'))
 
         # TODO test rotor layer at output
         self.output_linear = EquivariantLinear(algebra=geometric_algebra, units=n_bodies)

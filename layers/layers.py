@@ -1067,6 +1067,59 @@ class EquivariantGP(GeometricAlgebraLayer):
         return self.algebra.geom_prod(x, y)
 
 
+class EquivariantJoin(GeometricAlgebraLayer):
+    """
+    This is an equivariant join layer. It takes the multivector inputs, projects them using equilinear
+    layers, then takes the join (or meet) of the result and outputs the result.
+
+     Args:
+        algebra: GeometricAlgebra instance to use for the parameters
+        units: number of linear units to use in the equilinear layer (and number of output multivectors)
+    """
+
+    def __init__(
+            self,
+            algebra: GeometricAlgebra,
+            units: int,
+            use_bias=True,
+            kernel_initializer="glorot_uniform",
+            bias_initializer="zeros",
+            kernel_regularizer=None,
+            bias_regularizer=None,
+            activity_regularizer=None,
+            kernel_constraint=None,
+            bias_constraint=None,
+            **kwargs
+    ):
+        super().__init__(
+            algebra=algebra, activity_regularizer=activity_regularizer, **kwargs
+        )
+        # define linear layers
+        self.linear1 = EquivariantLinear(algebra, units, use_bias, kernel_initializer, bias_initializer,
+                                         kernel_regularizer, bias_regularizer, activity_regularizer, kernel_constraint,
+                                         bias_constraint)
+        self.linear2 = EquivariantLinear(algebra, units, use_bias, kernel_initializer, bias_initializer,
+                                         kernel_regularizer, bias_regularizer, activity_regularizer, kernel_constraint,
+                                         bias_constraint)
+
+        # get pseudoscalar and its inverse for applying joins
+        self.pseudoscalar = self.algebra.blade_mvs[-1]
+        self.pseudoscalar_inv = self.algebra.inverse(self.algebra.blade_mvs[-1])
+
+    def build(self, input_shape: tf.TensorShape):
+        self.built = True
+
+    def call(self, inputs):
+        # apply linear layers to inputs
+        x = self.linear1(inputs)
+        y = self.linear2(inputs)
+
+        # compute join between x and y and return - join is (x I_inv ^ y I_inv)I - tfga does not correctly implement
+        # this, necessitating a more complex approach
+        return self.algebra.geom_prod(self.algebra.ext_prod(self.algebra.geom_prod(x, self.pseudoscalar_inv),
+                                      self.algebra.geom_prod(y, self.pseudoscalar_inv)), self.pseudoscalar)
+
+
 class EquivariantTransformerBlock(GeometricAlgebraLayer):
     """
     This is an Equivariant Transformer Block designed to use CGA to solve geometric prediction problems. It assumes that
@@ -1092,7 +1145,7 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
             hidden_units,
             output_units,
             heads=1,
-            non_linear_activation='gelu',
+            non_linear_activation='sigmoid',
             key_dimension=None,
             activity_regularizer=None,
             **kwargs
@@ -1102,32 +1155,26 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
         )
         self.num_multivectors = output_units
 
-        # linear layer before residual connection
-        self.linear1 = EquivariantLinear(algebra, units=output_units)
-
+        # layer norm before attn block
+        self.layer_norm1 = EquivariantMeanLayerNorm(algebra)
         # initial linear layer - geometric product allows mixing before attention layer
         self.gp_linear1 = EquivariantGP(algebra, hidden_units)
-
         # multi head attention - includes linear layer at the end of attention block
         self.multi_head_attention = EquivariantSelfAttention(algebra, units_per_head, output_units, heads,
                                                              key_dimension=key_dimension)
+        # linear layer before residual connection
+        self.linear1 = EquivariantLinear(algebra, units=output_units)
 
         # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
-        self.layer_norm = EquivariantStableLayerNorm(algebra)
-
+        self.layer_norm2 = EquivariantMeanLayerNorm(algebra)
         # geometric product layer
-        self.gp_linear2 = EquivariantGP(algebra, hidden_units)
-
+        self.gp_linear2 = EquivariantGP(algebra, hidden_units // 2)
+        # join layer
+        self.join = EquivariantJoin(algebra, hidden_units // 2)
         # non-linear layer (using scalar part for stability)
         self.non_linear = EquivariantNonLinear(algebra, activation=non_linear_activation, method='scalar')
-
         # linear layer (end of transformer, return to original shape) - TODO try using rotor convolution layer
         self.linear2 = EquivariantLinear(algebra, output_units)
-
-        # define sequential attention block and feed-forward block
-        # self.attention_block = tf.keras.Sequential([self.gp_linear1, self.multi_head_attention, self.linear1])
-        # self.feed_forward_block = tf.keras.Sequential([self.layer_norm, self.gp_linear2, self.non_linear,
-        # self.linear2])
 
     def build(self, input_shape: tf.TensorShape):
         if self.num_multivectors != input_shape[-2]:
@@ -1137,14 +1184,15 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
     def call(self, inputs):
         # initial attention block + residual connection
         residual_1 = inputs
-        x = self.gp_linear1(residual_1)
+        x = self.layer_norm1(residual_1)  # ADDED LAYERNORM - EXPERIMENT WITH STABILITY
+        x = self.gp_linear1(x)
         x = self.multi_head_attention(x)
         x = self.linear1(x)
         residual_2 = x + residual_1
 
         # feed-forward block + residual connection
-        x = self.layer_norm(residual_2)
-        x = self.gp_linear2(x)
+        x = self.layer_norm2(residual_2)
+        x = tf.concat([self.gp_linear2(x), self.join(x)], axis=-2)
         x = self.non_linear(x)
         x = self.linear2(x)
 
@@ -1176,7 +1224,7 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
             hidden_units,
             output_units,
             heads=1,
-            non_linear_activation='gelu',
+            non_linear_activation='sigmoid',
             key_dimension=None,
             activity_regularizer=None,
             **kwargs
@@ -1199,7 +1247,9 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
         # layer norm (beginning of feed-forward block) - stable layer norm used to avoid /0
         self.layer_norm2 = EquivariantMeanLayerNorm(algebra)
         # geometric product layer
-        self.gp_linear2 = EquivariantGP(algebra, hidden_units)
+        self.gp_linear2 = EquivariantGP(algebra, hidden_units // 2)
+        # join layer
+        self.join = EquivariantJoin(algebra, hidden_units // 2)
         # non-linear layer (using scalar part for stability)
         self.non_linear = EquivariantNonLinear(algebra, activation=non_linear_activation, method='scalar')
         # linear layer (end of transformer, return to original shape) - TODO try using rotor convolution layer
@@ -1221,7 +1271,7 @@ class ExperimentalEquivariantTransformerBlock(GeometricAlgebraLayer):
 
         # feed-forward block + residual connection
         x = self.layer_norm2(residual_2)
-        x = self.gp_linear2(x)
+        x = tf.concat([self.gp_linear2(x), self.join(x)], axis=-2)
         x = self.non_linear(x)
         x = self.linear2(x)
 

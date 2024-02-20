@@ -4,7 +4,8 @@
 import tensorflow as tf
 import numpy as np
 from layers.layers import EquivariantAttention, EquivariantSelfAttention, EquivariantTransformerBlock, \
-    EquivariantStableLayerNorm, EquivariantLayerNorm, EquivariantMeanLayerNorm, ExperimentalEquivariantTransformerBlock
+    EquivariantStableLayerNorm, EquivariantLayerNorm, EquivariantMeanLayerNorm, ExperimentalEquivariantTransformerBlock,\
+    EquivariantJoin
 from tfga import GeometricAlgebra
 
 ga = GeometricAlgebra(metric=[1, 1])
@@ -63,3 +64,6 @@ transformer = ExperimentalEquivariantTransformerBlock(ga, 10, 4, 2, heads=3)
 y = transformer(q)
 
 print(y)
+
+join = EquivariantJoin(ga, 5)
+print(join(q))

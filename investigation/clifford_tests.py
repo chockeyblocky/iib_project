@@ -35,3 +35,5 @@ print(ga.geom_prod(right_dual_x, ga.blade_mvs[-1]))
 
 wrong_dual_x = ga.dual(ga_x)
 print(wrong_dual_x)
+
+print(ga.inverse(ga.blade_mvs[-1]))
