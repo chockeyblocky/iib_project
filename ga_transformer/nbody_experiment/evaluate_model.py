@@ -7,6 +7,7 @@ import numpy as np
 import pickle
 from nbody_model import mlp_model, cga_transformer_model
 from run_experiment import create_dataset, custom_mse
+import matplotlib.pyplot as plt
 
 # set random seed
 tf.random.set_seed(0)
@@ -63,12 +64,44 @@ def validation_loop(model, dataset):
         print(mse)
 
 
+def load_history(model_name):
+    hist_path = PATH + "model_histories/{}_history.pkl".format(model_name)
+    with open(hist_path, 'rb') as f:
+        history = pickle.load(f)
+    return history
+
+
+def plot_training_losses(model_name):
+    """
+    Plots losses in training using model history.
+    :param model_name: string containing name of model
+    :return:
+    """
+    # load model history
+    history = load_history(model_name)
+
+    # get loss and val loss from history
+    loss = history['loss']
+    val_loss = history['val_loss']
+
+    # plot against epoch
+    epochs = range(1, len(loss) + 1)
+    plt.plot(epochs, loss, 'r', label='Training loss')
+    plt.plot(epochs, val_loss, 'b', label='Validation loss')
+    plt.title('Training and validation loss')
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss (MSE)")
+    plt.legend()
+
+    plt.show()
+
+
 def main():
     """
     Main function to run.
     :return:
     """
-    model_name = "nbody_cga_transformer"
+    model_name = "1_block_nbody_cga_transformer"
 
     # create model
     model = cga_transformer_model()
@@ -85,6 +118,9 @@ def main():
 
     # run validation loop on first 5 elements of validation set
     validation_loop(model, ds_val_batch.take(5))
+
+    # plot training losses
+    plot_training_losses(model_name)
 
 
 if __name__ == "__main__":

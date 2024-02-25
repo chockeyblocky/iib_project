@@ -1184,7 +1184,7 @@ class EquivariantTransformerBlock(GeometricAlgebraLayer):
     def call(self, inputs):
         # initial attention block + residual connection
         residual_1 = inputs
-        x = self.layer_norm1(residual_1)  # ADDED LAYERNORM - EXPERIMENT WITH STABILITY
+        x = self.layer_norm1(residual_1)
         x = self.gp_linear1(x)
         x = self.multi_head_attention(x)
         x = self.linear1(x)

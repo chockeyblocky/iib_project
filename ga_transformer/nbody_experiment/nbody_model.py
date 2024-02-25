@@ -7,7 +7,7 @@ from tfga import GeometricAlgebra
 from nbody_cga_transformer import CGATransformer, ExperimentalCGATransformer
 
 
-def cga_transformer_model(num_bodies=4):
+def cga_transformer_model(num_bodies=4, num_blocks=1):
     """
     Creates a transformer which uses CGA to solve geometric problems.
     :param num_bodies: number of bodies used in simulation
@@ -17,7 +17,7 @@ def cga_transformer_model(num_bodies=4):
     cga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
 
     # instantiate model
-    model = CGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=1)
+    model = CGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=num_blocks)
 
     initial_learning_rate = 2e-3
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -45,7 +45,7 @@ def experimental_cga_transformer_model(num_bodies=4):
     cga = GeometricAlgebra(metric=[1, 1, 1, 1, -1])
 
     # instantiate model
-    model = ExperimentalCGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=2)
+    model = ExperimentalCGATransformer(geometric_algebra=cga, n_bodies=num_bodies, n_blocks=3)
 
     initial_learning_rate = 2e-3
     lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
