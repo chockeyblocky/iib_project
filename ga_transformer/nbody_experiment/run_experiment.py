@@ -167,15 +167,15 @@ def main():
     """
     ds_train = create_dataset("01_seconds_100_steps/train")
     ds_val = create_dataset("01_seconds_100_steps/val")
-    model = cga_transformer_model()
+    model = cga_transformer_model(num_blocks=4)
     model.summary()
 
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
     batch_size = 64  # batch size chosen as in config of gatr GitHub
     num_epochs = 50
 
-    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
-    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(batch_size)
+    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=True, seed=0).batch(batch_size)
+    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=True, seed=0).batch(batch_size)
 
     # training
     model_train = model.fit(ds_train_batch,
@@ -184,10 +184,10 @@ def main():
                             callbacks=es_callback)
 
     # save model
-    save_model('1_block_nbody_cga_transformer', model)
+    save_model("4_block_nbody_cga_transformer", model)
 
     # save losses
-    save_loss("1_block_nbody_cga_transformer_history", model_train)
+    save_loss("4_block_nbody_cga_transformer_history", model_train)
 
 
 if __name__ == "__main__":

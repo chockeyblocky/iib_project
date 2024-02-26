@@ -91,6 +91,40 @@ def plot_training_losses(model_name):
     plt.title('Training and validation loss')
     plt.xlabel("Epoch")
     plt.ylabel("Loss (MSE)")
+    plt.yscale('log')
+    plt.legend()
+
+    plt.show()
+
+
+def plot_all_val_losses():
+    """
+    Plots all validation losses from model histories for all trained models on the 0.1s dataset on the same axes.
+    :return:
+    """
+    # load model histories
+    base_model_name = "{}_block_nbody_cga_transformer"
+    history1 = load_history(base_model_name.format("1"))
+    history2 = load_history(base_model_name.format("2"))
+    history3 = load_history(base_model_name.format("3"))
+
+    # get loss and val loss from history
+    val_loss1 = history1['val_loss']
+    val_loss2 = history2['val_loss']
+    val_loss3 = history3['val_loss']
+
+    # plot against epoch
+    epochs = range(1, len(val_loss1) + 1)
+    plt.plot(epochs, val_loss1, 'b', label='1 block')
+    epochs = range(1, len(val_loss2) + 1)
+    plt.plot(epochs, val_loss2, 'r', label='2 block')
+    epochs = range(1, len(val_loss3) + 1)
+    plt.plot(epochs, val_loss3, 'g', label='3 block')
+
+    plt.title('Validation loss for different CGA transformers')
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss (MSE)")
+    plt.yscale('log')
     plt.legend()
 
     plt.show()
@@ -101,10 +135,10 @@ def main():
     Main function to run.
     :return:
     """
-    model_name = "1_block_nbody_cga_transformer"
+    model_name = "2_block_nbody_cga_transformer"
 
     # create model
-    model = cga_transformer_model()
+    model = cga_transformer_model(num_blocks=2)
 
     # load weights
     load_weights(model_name, model)
@@ -121,6 +155,9 @@ def main():
 
     # plot training losses
     plot_training_losses(model_name)
+
+    # plot all val losses
+    plot_all_val_losses()
 
 
 if __name__ == "__main__":
