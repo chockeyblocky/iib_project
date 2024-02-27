@@ -107,21 +107,29 @@ def plot_all_val_losses():
     history1 = load_history(base_model_name.format("1"))
     history2 = load_history(base_model_name.format("2"))
     history3 = load_history(base_model_name.format("3"))
+    history4 = load_history(base_model_name.format("4"))
+    mlp_history = load_history("nbody_mlp")
 
     # get loss and val loss from history
     val_loss1 = history1['val_loss']
     val_loss2 = history2['val_loss']
     val_loss3 = history3['val_loss']
+    val_loss4 = history4['val_loss']
+    mlp_val_loss = mlp_history['val_loss']
 
     # plot against epoch
     epochs = range(1, len(val_loss1) + 1)
-    plt.plot(epochs, val_loss1, 'b', label='1 block')
+    plt.plot(epochs, val_loss1, 'b', label='1 block CGATr')
     epochs = range(1, len(val_loss2) + 1)
-    plt.plot(epochs, val_loss2, 'r', label='2 block')
+    plt.plot(epochs, val_loss2, 'r', label='2 block CGATr')
     epochs = range(1, len(val_loss3) + 1)
-    plt.plot(epochs, val_loss3, 'g', label='3 block')
+    plt.plot(epochs, val_loss3, 'g', label='3 block CGATr')
+    epochs = range(1, len(val_loss4) + 1)
+    plt.plot(epochs, val_loss4, 'm', label='4 block CGATr')
+    epochs = range(1, len(mlp_val_loss) + 1)
+    plt.plot(epochs, mlp_val_loss, 'k', label='MLP')
 
-    plt.title('Validation loss for different CGA transformers')
+    plt.title('Validation loss in training for different models')
     plt.xlabel("Epoch")
     plt.ylabel("Loss (MSE)")
     plt.yscale('log')
