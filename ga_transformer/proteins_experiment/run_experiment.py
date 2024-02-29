@@ -202,7 +202,6 @@ def main():
     edge_n = 3
 
     model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
-    save_model("test", model)
 
     train_feat_paths = [deepcov_features_path]
     test_feat_paths = [psicov_features_path]
@@ -214,7 +213,7 @@ def main():
 
     lsttrain, lstval = train_test_split(lst_train, test_size=0.20, random_state=42)
 
-    epochs = 1  # down from 100 for testing purposes
+    epochs = 100
     batch_size = 10
     n_batches = len(lsttrain) // batch_size
 
@@ -356,6 +355,8 @@ def main():
 
         if stopflag == 1:
             break
+
+    save_model("test", model)
 
 
 if __name__ == "__main__":
