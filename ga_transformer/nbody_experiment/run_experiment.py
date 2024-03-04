@@ -167,7 +167,7 @@ def main():
     """
     ds_train = create_dataset("01_seconds_100_steps/train")
     ds_val = create_dataset("01_seconds_100_steps/val")
-    model = cga_transformer_model(num_blocks=1)
+    model = cga_transformer_model(num_blocks=4)
     model.summary()
 
     es_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=12, restore_best_weights=True)
@@ -184,10 +184,10 @@ def main():
                             callbacks=es_callback)
 
     # save model
-    save_model("1_block_nbody_cga_transformer", model)
+    save_model("4_block_nbody_cga_transformer_b", model)
 
     # save losses
-    save_loss("1_block_nbody_cga_transformer_history", model_train)
+    save_loss("4_block_nbody_cga_transformer_b_history", model_train)
 
 
 if __name__ == "__main__":

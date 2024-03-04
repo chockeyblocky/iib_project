@@ -138,11 +138,55 @@ def plot_all_val_losses():
     plt.show()
 
 
+def assess_all_models():
+    """
+    Outputs val losses for all models considered.
+    :return:
+    """
+    # load models
+    cga_1 = load_cga_transformer(1)
+    cga_2 = load_cga_transformer(2)
+    cga_3 = load_cga_transformer(3)
+    cga_4 = load_cga_transformer(4)
+    mlp = mlp_model()
+    load_weights("nbody_mlp", mlp)
+
+    # load training and val sets
+    ds_train, ds_val = load_train_val_data("01")
+    ds_train_batch = ds_train.shuffle(1000, reshuffle_each_iteration=False).batch(100)
+    ds_val_batch = ds_val.shuffle(1000, reshuffle_each_iteration=False).batch(100)
+
+    # put val sets through each model
+    models = [mlp, cga_1, cga_2, cga_3, cga_4]
+    for m in models:
+        print(m.summary())
+        print(m.evaluate(ds_train_batch))
+        print(m.evaluate(ds_val_batch))
+
+def load_cga_transformer(num_blocks, base_model_name="{}_block_nbody_cga_transformer"):
+    """
+    Loads a CGA transformer model.
+    :param num_blocks: 2
+    :param base_model_name: name of trained model with omitted number of blocks.
+    :return: model with weights set
+    """
+    # create model
+    model = cga_transformer_model(num_blocks=num_blocks)
+
+    # load weights
+    load_weights(base_model_name.format(str(num_blocks)), model)
+
+    return model
+
+
 def main():
     """
     Main function to run.
     :return:
     """
+    # assess all models
+    assess_all_models()
+
     model_name = "2_block_nbody_cga_transformer"
 
     # create model

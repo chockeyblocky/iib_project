@@ -55,7 +55,7 @@ class CGATransformer(tf.keras.Model):
 
     def embed_velocities(self, points, vels):
         """
-        Embeds points into CGA using the scheme described in "Guide to Geometric Algebra in Practice" (Dorst, Lasenby).
+        Embeds velocities into CGA using the scheme described in "Guide to Geometric Algebra in Practice" (Dorst, Lasenby).
         :param points: points tensor corresponding to velocities vector
         :param vels: velocities tensor to be embedded.
         :param ga: Geometric Algebra to be used

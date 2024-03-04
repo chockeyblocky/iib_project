@@ -201,8 +201,8 @@ def main():
     node_n = 27
     edge_n = 3
 
-    # model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
-    model = mlp_model(num_edge_layers=edge_n, num_features=27)
+    model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
+    # model = mlp_model(num_edge_layers=edge_n, num_features=27)
 
     train_feat_paths = [deepcov_features_path]
     test_feat_paths = [psicov_features_path]
