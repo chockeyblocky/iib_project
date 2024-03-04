@@ -9,7 +9,7 @@ from tfga import GeometricAlgebra
 from sklearn.model_selection import train_test_split
 import time
 from layers.graph_transformer import GraphTransformer
-from proteins_model import cga_transformer_model
+from proteins_model import cga_transformer_model, mlp_model
 
 import pickle
 import os
@@ -201,12 +201,13 @@ def main():
     node_n = 27
     edge_n = 3
 
-    model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
+    # model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
+    model = mlp_model(num_edge_layers=edge_n, num_features=27)
 
     train_feat_paths = [deepcov_features_path]
     test_feat_paths = [psicov_features_path]
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-2)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=2e-3)
 
     early_stopper = EarlyStopper(patience=4, min_delta=0.1)
     stopflag = 0
