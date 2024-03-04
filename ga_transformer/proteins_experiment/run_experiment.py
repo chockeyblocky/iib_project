@@ -317,7 +317,7 @@ def main():
             filename = os.path.splitext(filename)[0]
 
             nodes, edges, mask, l = get_nodes_and_edges(filename, train_feat_paths, node_n, edge_n)
-            distance = tf.convert_to_tensor(np.load(deepcov_distances_path + filename + '-cb.npy', allow_pickle=True))
+            distance = tf.convert_to_tensor(np.load(deepcov_distances_path + filename + '-cb.npy', allow_pickle=True)[2])
 
             # feed forward into model
             coord = model(nodes, edges, mask=mask)
