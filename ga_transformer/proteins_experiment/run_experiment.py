@@ -5,7 +5,6 @@ blocks.
 
 import tensorflow as tf
 import numpy as np
-from tfga import GeometricAlgebra
 from sklearn.model_selection import train_test_split
 import time
 from layers.graph_transformer import GraphTransformer
@@ -117,25 +116,6 @@ class EarlyStopper:
             if self.counter >= self.patience:
                 return True
         return False
-
-
-class Net(tf.keras.Model):
-    def __init__(self, edge_n):
-        super().__init__()
-        self.gt = GraphTransformer(
-            depth=3,
-            heads=4,
-            edge_dim=edge_n,
-            with_feedforwards=True,
-            rel_pos_emb=True)
-        self.dense = tf.keras.layers.Dense(3, activation=None)
-        # add in shape reduction layers to make shapes match
-
-    def call(self, nodes, edges, mask):
-        x, edges_new = self.gt(nodes, edges, mask=mask)
-        x = self.dense(x)
-        x = tf.reshape(x, (1, -1, 3))
-        return x
 
 
 def custom_loss(pred_dist, Y, alpha, batch_size, mae):
@@ -336,8 +316,8 @@ def main():
 
             del nodes, edges, mask, l, coord, distance, actual_dist, pred_dist
 
-        val_loss_arr = np.append(val_loss_arr, (tot_val_loss / len(lstval)))
-        final_loss = np.append(final_loss, total_loss / len(lsttrain))
+        val_loss_arr = np.append(val_loss_arr, (tot_val_loss * batch_size / len(lstval)))
+        final_loss = np.append(final_loss, total_loss * batch_size / len(lsttrain))
 
         print("....")
         print("validation loss:", val_loss_arr)
