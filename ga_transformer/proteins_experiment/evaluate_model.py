@@ -48,8 +48,6 @@ def evaluate(model, filenames_list, features_path, distances_path):
 
     for filename in filenames_list:
         count += 1
-        if count % 20 == 0:
-            print(count, "/", len(filenames_list))
         filename = os.path.splitext(filename)[0]
 
         nodes, edges, mask, l = get_nodes_and_edges(filename, [features_path], 27, 3)
@@ -68,6 +66,10 @@ def evaluate(model, filenames_list, features_path, distances_path):
 
         avg_mae += tf.reduce_mean(mae(pred_dist, actual_dist))
         avg_ssim += tf.image.ssim(img1=pred_dist, img2=actual_dist, max_val=255)
+
+        if count % 20 == 0:
+            print(count, "/", len(filenames_list))
+            print("Current avg MAE: ", avg_mae / count)
 
         del nodes, edges, mask, l, coord, distance, actual_dist, pred_dist
 
