@@ -7,7 +7,7 @@ import pickle
 import numpy as np
 from run_experiment import custom_norm, get_nodes_and_edges
 import os
-from proteins_model import cga_transformer_model
+from proteins_model import cga_transformer_model, mlp_model
 from sklearn.model_selection import train_test_split
 
 # set random seed
@@ -86,8 +86,8 @@ def main():
     :return:
     """
 
-    model = cga_transformer_model(num_blocks=1)
-    load_weights("test_lr2e-3_1block", model)  # demonstrates loading of model
+    model = cga_transformer_model(num_blocks=2)
+    load_weights("test_lr2e-3_2block", model)  # demonstrates loading of model
 
     deepcov_features_path = DATA_PATH + '/data/deepcov/features/'
     deepcov_distances_path = DATA_PATH + '/data/deepcov/distance/'

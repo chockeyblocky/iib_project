@@ -152,6 +152,29 @@ def save_model(name, model):
         pickle.dump(model.get_weights(), f)
 
 
+def orient_coords(x, y):
+    """
+    Computes x coordinates oriented such that MSE to y is minimised (assumes centroids of both x and y have already been
+    normalised to 0). Follows algorithm found in "Least-Squares Fitting of Two 3-D Point Sets" (Arun et al.).
+    :param x: tf tensor containing (1, N, 3) predicted points
+    :param y: tf tensor containing (1, N, 3) target points
+    :return: x_oriented
+    """
+    # compute matrix from outer product of coordinate pairs
+    H = tf.reshape(tf.einsum("..ki,..kj->...ij", x, y), (3, 3))
+
+    # compute svd of H
+    s, u, v = tf.linalg.svd(H)
+
+    # compute rotation matrix (R = vu^t)
+    R = tf.einsum("ik,jk->ij", v, u)
+
+    # apply rotation matrix to x and return
+    return tf.einsum("ik,...k->...i", R, x)
+
+
+
+
 def main():
     """
     Main function to run.
