@@ -50,8 +50,8 @@ def evaluate(model, filenames_list, features_path, distances_path):
         count += 1
         filename = os.path.splitext(filename)[0]
 
-        nodes, edges, mask, l = get_nodes_and_edges(filename, [features_path], 27, 3)
-        distance = tf.convert_to_tensor(np.load(distances_path + filename + '-cb.npy', allow_pickle=True)[2])
+        nodes, edges, mask, l = get_nodes_and_edges(filename, [features_path], 27, 4, distances_path)
+        distance = tf.convert_to_tensor(np.load(distances_path + filename + '-ca.npy', allow_pickle=True))
 
         # feed forward into model
         coord = model(nodes, edges, mask=mask)
@@ -90,9 +90,9 @@ def main():
     load_weights("test_lr2e-3_2block", model)  # demonstrates loading of model
 
     deepcov_features_path = DATA_PATH + '/data/deepcov/features/'
-    deepcov_distances_path = DATA_PATH + '/data/deepcov/distance/'
+    deepcov_distances_path = DATA_PATH + '/data/deepcov/ca_distance/'
     psicov_features_path = DATA_PATH + '/data/psicov/features/'
-    psicov_distances_path = DATA_PATH + '/data/psicov/distance/'
+    psicov_distances_path = DATA_PATH + '/data/psicov/ca_distance/'
 
     lst = os.listdir(deepcov_features_path) + os.listdir(psicov_features_path)
     lst.sort()

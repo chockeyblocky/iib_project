@@ -23,4 +23,4 @@ class MLPModel(tf.keras.Model):
         x, edges_new = self.gt(nodes, edges, mask=mask)
         x = self.dense_1(x)
         x = self.dense_2(x)
-        return x
+        return x - tf.reduce_mean(x, axis=1)

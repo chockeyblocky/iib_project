@@ -20,14 +20,14 @@ def main():
     Main function to run.
     :return:
     """
-    coords_path = DATA_PATH + "/data/chains/"
+    coords_path = DATA_PATH + "/data/chains-test/"
     deepcov_features_path = DATA_PATH + '/data/deepcov/features/'
     deepcov_distances_path = DATA_PATH + '/data/deepcov/distance/'
     psicov_features_path = DATA_PATH + '/data/psicov/features/'
     psicov_distances_path = DATA_PATH + '/data/psicov/distance/'
 
-    coord_save_path = DATA_PATH + '/data/deepcov/ca_coords/'
-    dist_save_path = DATA_PATH + '/data/deepcov/ca_distance/'
+    coord_save_path = DATA_PATH + '/data/psicov/ca_coords/'
+    dist_save_path = DATA_PATH + '/data/psicov/ca_distance/'
 
     lst = os.listdir(coords_path)
     lst.sort()
@@ -38,7 +38,7 @@ def main():
     parser = PDBParser(PERMISSIVE=1)
     structure_id = "chain"
 
-    for filename in lst_train:
+    for filename in lst_test:
         filename = os.path.splitext(filename)[0]
         print(filename)
 
@@ -48,8 +48,8 @@ def main():
             N = 0
             idx = 0
 
-            features = pickle.load(open(deepcov_features_path + filename + '.pkl', 'rb'))
-            print("DEEPCOV LENGTH: ", len(features['seq']))
+            features = pickle.load(open(psicov_features_path + filename + '.pkl', 'rb'))
+            print("PSICOV LENGTH: ", len(features['seq']))
 
             # distance = np.load(deepcov_distances_path + filename + '-cb.npy', allow_pickle=True)[2]
             # print(distance.shape)

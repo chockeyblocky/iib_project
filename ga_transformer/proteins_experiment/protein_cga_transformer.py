@@ -98,4 +98,7 @@ class ProteinCGATransformer(tf.keras.Model):
         x = self.transformer_net(x)
         x = self.output_linear(x)
         x = self.cga_extract_outputs(x)
-        return tf.reshape(x, shape=[1, -1, 3])
+        x = tf.reshape(x, shape=[1, -1, 3])
+
+        # subtract centroid and return
+        return x - tf.reduce_mean(x, axis=1)

@@ -21,13 +21,14 @@ PATH = "C:/Users/Christian/Documents/Coursework/iib_project/ga_transformer/"
 DATA_PATH = PATH + "datasets/psp_dataset"
 
 
-def get_nodes_and_edges(pdb, all_feat_paths, node_n, edge_n):
+def get_nodes_and_edges(pdb, all_feat_paths, node_n, edge_n, dist_path):
     """
     Gets nodes and edges for input into graph transformer
     :param pdb: name of file to load
     :param all_feat_paths: all possible paths at which features lie
     :param node_n: number of features per node in GT input
     :param edge_n: number of layers of edges per node in each GT input
+    :param dist_path: path to distance maps
     :return: nodes, edges, mask, length of feature
     """
     features = None
@@ -89,6 +90,9 @@ def get_nodes_and_edges(pdb, all_feat_paths, node_n, edge_n):
     assert potential.shape == ((l, l))
     edges[:, :, :, gi] = potential
     gi += 1
+    # Add distance map
+    distance = np.load(dist_path + pdb + '-ca.npy', allow_pickle=True)
+    edges[:, :, :, gi] = distance
 
     # if tensors are required in batch generation then use this
     nodes = tf.convert_to_tensor(nodes)
@@ -161,7 +165,7 @@ def orient_coords(x, y):
     :return: x_oriented
     """
     # compute matrix from outer product of coordinate pairs
-    H = tf.reshape(tf.einsum("..ki,..kj->...ij", x, y), (3, 3))
+    H = tf.reshape(tf.einsum("...ki,...kj->...ij", x, y), (3, 3))
 
     # compute svd of H
     s, u, v = tf.linalg.svd(H)
@@ -181,9 +185,11 @@ def main():
     :return:
     """
     deepcov_features_path = DATA_PATH + '/data/deepcov/features/'
-    deepcov_distances_path = DATA_PATH + '/data/deepcov/distance/'
+    deepcov_distances_path = DATA_PATH + '/data/deepcov/ca_distance/'
+    deepcov_coords_path = DATA_PATH + '/data/deepcov/ca_coords/'
     psicov_features_path = DATA_PATH + '/data/psicov/features/'
-    psicov_distances_path = DATA_PATH + '/data/psicov/distance/'
+    psicov_distances_path = DATA_PATH + '/data/psicov/ca_distance/'
+    psicov_coords_path = DATA_PATH + '/data/psicov/ca_coords/'
 
     lst = os.listdir(deepcov_features_path) + os.listdir(psicov_features_path)
     lst.sort()
@@ -202,7 +208,7 @@ def main():
             lst_test = np.append(lst_test, filename)
 
     node_n = 27
-    edge_n = 3
+    edge_n = 4
 
     model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
     # model = mlp_model(num_edge_layers=edge_n, num_features=27)
@@ -226,7 +232,7 @@ def main():
     i_in = 0
     j_in = 0
     alpha = 20
-    mae = tf.keras.losses.MeanAbsoluteError()
+    mse = tf.keras.losses.MeanSquaredError()
 
     final_loss = []
     val_loss_arr = []
@@ -249,7 +255,7 @@ def main():
             nodes_batch = []
             edges_batch = []
             mask_batch = []
-            dist_batch = []
+            coords_batch = []
             grads = []
 
             # collect data from batch
@@ -258,14 +264,15 @@ def main():
                 filename = os.path.splitext(filename)[0]
 
                 # load nodes, edges, mask
-                nodes, edges, mask, l = get_nodes_and_edges(filename, train_feat_paths, node_n, edge_n)
+                nodes, edges, mask, l = get_nodes_and_edges(filename, train_feat_paths, node_n, edge_n,
+                                                            deepcov_distances_path)
                 nodes_batch.append(nodes)
                 edges_batch.append(edges)
                 mask_batch.append(mask)
 
-                # load distance - for loss calculation
-                distance = np.load(deepcov_distances_path + filename + '-cb.npy', allow_pickle=True)
-                dist_batch.append(tf.convert_to_tensor(distance[2]))
+                # load true coordinates - for loss calculation
+                coords_batch.append(tf.convert_to_tensor(np.load(deepcov_coords_path + filename + ".npy",
+                                                                 allow_pickle=True), dtype=tf.float32))
 
             for i in range(batch_size):
                 with tf.GradientTape() as tape:
@@ -274,19 +281,13 @@ def main():
                     tape.watch(edges_batch[i])
 
                     # feed forward into model
-                    coord = model(nodes_batch[i], edges_batch[i], mask=mask_batch[i])
+                    predicted_coords = model(nodes_batch[i], edges_batch[i], mask=mask_batch[i])
 
-                    # convert to predicted distances
-                    coord = tf.repeat(coord, repeats=coord.shape[1], axis=0)
-                    pred_dist = tf.expand_dims(
-                        tf.expand_dims(custom_norm(coord - tf.transpose(coord, perm=[1, 0, 2])), 0), -1)
-                    # could do a reshape instead
+                    # orient predicted coords with respect to actual ones
+                    oriented_coords = orient_coords(predicted_coords, coords_batch[i])
 
-                    # get true distance
-                    actual_dist = tf.expand_dims(tf.expand_dims(tf.cast(dist_batch[i], tf.float32), -1), 0)
-
-                    # compute loss
-                    loss = custom_loss(pred_dist, actual_dist, alpha, batch_size, mae)
+                    # calculate MSE loss
+                    loss = mse(coords_batch[i], oriented_coords) / batch_size
 
                 # record batch loss for output
                 batch_loss += loss
@@ -299,12 +300,11 @@ def main():
                     for i in range(len(grads)):
                         grads[i] = grads[i] + new_grads[i]
 
-            del nodes_batch, edges_batch, mask_batch, dist_batch, coord, actual_dist, pred_dist
+            del nodes_batch, edges_batch, mask_batch, coords_batch, predicted_coords, oriented_coords
 
             print("Loss: ", batch_loss)
 
             optimizer.apply_gradients(zip(grads, model.trainable_weights))
-            start = time.time()
             total_loss += batch_loss
             batch_loss = 0
 
@@ -319,25 +319,21 @@ def main():
 
             filename = os.path.splitext(filename)[0]
 
-            nodes, edges, mask, l = get_nodes_and_edges(filename, train_feat_paths, node_n, edge_n)
-            distance = tf.convert_to_tensor(np.load(deepcov_distances_path + filename + '-cb.npy', allow_pickle=True)[2])
+            nodes, edges, mask, l = get_nodes_and_edges(filename, train_feat_paths, node_n, edge_n,
+                                                        deepcov_distances_path)
+            actual_coords = tf.convert_to_tensor(np.load(deepcov_coords_path + filename + ".npy",
+                                                         allow_pickle=True), dtype=tf.float32)
 
             # feed forward into model
-            coord = model(nodes, edges, mask=mask)
+            predicted_coords = model(nodes, edges, mask=mask)
 
-            # convert to predicted distances
-            coord = tf.repeat(coord, repeats=coord.shape[1], axis=0)
-            pred_dist = tf.expand_dims(tf.expand_dims(custom_norm(coord - tf.transpose(coord, perm=[1, 0, 2])), 0),
-                                       -1)  # could do a reshape instead
+            # orient predicted coords with respect to actual ones
+            oriented_coords = orient_coords(predicted_coords, actual_coords)
 
-            # compute loss
-            actual_dist = tf.expand_dims(tf.expand_dims(tf.cast(distance, tf.float32), -1), 0)
+            # calculate MSE loss
+            tot_val_loss += mse(actual_coords, oriented_coords) / batch_size
 
-            loss = custom_loss(pred_dist, actual_dist, alpha, batch_size, mae)
-
-            tot_val_loss += loss
-
-            del nodes, edges, mask, l, coord, distance, actual_dist, pred_dist
+            del nodes, edges, mask, l, oriented_coords, actual_coords, predicted_coords
 
         val_loss_arr = np.append(val_loss_arr, (tot_val_loss * batch_size / len(lstval)))
         final_loss = np.append(final_loss, total_loss * batch_size / len(lsttrain))

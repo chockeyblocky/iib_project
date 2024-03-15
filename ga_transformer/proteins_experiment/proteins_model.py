@@ -8,7 +8,7 @@ from protein_cga_transformer import ProteinCGATransformer
 from protein_mlp_model import MLPModel
 
 
-def cga_transformer_model(num_blocks=1, num_edge_layers=3, num_features=27):
+def cga_transformer_model(num_blocks=1, num_edge_layers=4, num_features=27):
     """
     Creates a transformer which uses CGA to solve geometric problems.
     :param num_blocks: number of transformer blocks to use
@@ -33,7 +33,7 @@ def cga_transformer_model(num_blocks=1, num_edge_layers=3, num_features=27):
     return model
 
 
-def mlp_model(num_edge_layers=3, num_features=27):
+def mlp_model(num_edge_layers=4, num_features=27):
     """
     Creates an MLP model with graph transformer backbone.
     :param num_edge_layers: number of edge layers in GT input
