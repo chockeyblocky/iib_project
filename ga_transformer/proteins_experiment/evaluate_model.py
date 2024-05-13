@@ -91,39 +91,48 @@ def evaluate(model, filenames_list, features_path, distances_path, coords_path):
 
     print("MAE:", avg_mae)
     print("Avg SSIM:", avg_ssim)
+    print("MSE:", avg_mse)
 
 
-def visualise_output(model, filename, features_path, distances_path, coords_path):
+def visualise_output(cga_model, mlp, filename, features_path, distances_path, coords_path):
     """
     Visualises a single output from a given PSP model corresponding to the given filename's protein.
-    :param model: psp model to use
+    :param cga_model: cga psp model to use
+    :param mlp: mlp psp model to use
     :param filename: filename of given protein
     :param features_path: path to features
     :param distances_path: path to distances
     :param coords_path: path to coordinates
     :return:
     """
+    filename = os.path.splitext(filename)[0]
     nodes, edges, mask, l = get_nodes_and_edges(filename, [features_path], 27, 4, distances_path)
-    distance = tf.convert_to_tensor(np.load(distances_path + filename + '-ca.npy', allow_pickle=True))
     true_coords = tf.convert_to_tensor(np.load(coords_path + filename + ".npy", allow_pickle=True),
                                        dtype=tf.float32)
 
     # feed forward into model
-    coord = model(nodes, edges, mask=mask)
+    coord = cga_model(nodes, edges, mask=mask)
+    mlp_coord = mlp(nodes, edges, mask=mask)
 
     # re-orient coordinates of output from model
     oriented_coords = orient_coords(coord, true_coords)
+    mlp_oriented_coords = orient_coords(mlp_coord, true_coords)
 
     # convert oriented and predicted coords to numpy arrays
-    oriented_np = oriented_coords.reshape([-1, 3]).numpy()
-    actual_np = true_coords.reshape([-1, 3]).numpy()
+    oriented_np = tf.reshape(oriented_coords, [-1, 3]).numpy()
+    actual_np = tf.reshape(true_coords, [-1, 3]).numpy()
+    mlp_np = tf.reshape(mlp_oriented_coords, [-1, 3]).numpy()
 
     # plot coordinates
     fig = plt.figure(figsize=(12, 12))
     ax = fig.add_subplot(projection='3d')
 
-    ax.scatter(actual_np[:, 0], actual_np[:, 1], actual_np[:, 2], c='b', label="actual")
-    ax.scatter(oriented_np[:, 0], oriented_np[:, 1], oriented_np[:, 2], c='r', label="predicted")
+    ax.scatter(actual_np[:, 0], actual_np[:, 1], actual_np[:, 2], c='b')
+    ax.plot(actual_np[:, 0], actual_np[:, 1], actual_np[:, 2], c='b', label="actual")
+    ax.scatter(oriented_np[:, 0], oriented_np[:, 1], oriented_np[:, 2], c='r')
+    ax.plot(oriented_np[:, 0], oriented_np[:, 1], oriented_np[:, 2], c='r', label="CGATr predicted")
+    ax.scatter(mlp_np[:, 0], mlp_np[:, 1], mlp_np[:, 2], c='g')
+    ax.plot(mlp_np[:, 0], mlp_np[:, 1], mlp_np[:, 2], c='g', label="MLP predicted")
 
     ax.legend()
     plt.show()
@@ -136,11 +145,13 @@ def main():
     """
 
     model = cga_transformer_model(num_blocks=2)
-    load_weights("test_lr2e-3_2block", model)  # demonstrates loading of model
+    mlp = mlp_model()
+    load_weights("psp_cgatr_2_block", model)  # demonstrates loading of model
+    load_weights("psp_mlp", mlp)
 
     deepcov_features_path = DATA_PATH + '/data/deepcov/features/'
     deepcov_distances_path = DATA_PATH + '/data/deepcov/ca_distance/'
-    deepcov_coords_path = DATA_PATH + 'data/deepcov/ca_coords'
+    deepcov_coords_path = DATA_PATH + '/data/deepcov/ca_coords/'
     psicov_features_path = DATA_PATH + '/data/psicov/features/'
     psicov_distances_path = DATA_PATH + '/data/psicov/ca_distance/'
     psicov_coords_path = DATA_PATH + '/data/psicov/ca_coords/'
@@ -164,6 +175,11 @@ def main():
     lsttrain, lstval = train_test_split(lst_train, test_size=0.20, random_state=42)
 
     model.summary()
+    print(lsttrain[0])
+
+    visualise_output(model, mlp, lsttrain[1], deepcov_features_path, deepcov_distances_path, deepcov_coords_path)
+    visualise_output(model, mlp, lsttrain[2], deepcov_features_path, deepcov_distances_path, deepcov_coords_path)
+    del mlp
 
     evaluate(model, lstval, deepcov_features_path, deepcov_distances_path, deepcov_coords_path)
     evaluate(model, lst_test, psicov_features_path, psicov_distances_path, psicov_coords_path)
