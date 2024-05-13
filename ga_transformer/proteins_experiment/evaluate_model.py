@@ -5,10 +5,11 @@ This script evaluates models trained using the protein structure prediction data
 import tensorflow as tf
 import pickle
 import numpy as np
-from run_experiment import custom_norm, get_nodes_and_edges
+from run_experiment import custom_norm, get_nodes_and_edges, orient_coords
 import os
 from proteins_model import cga_transformer_model, mlp_model
 from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 
 # set random seed
 tf.random.set_seed(0)
@@ -31,20 +32,23 @@ def load_weights(model_name, model):
     model.set_weights(weights)
 
 
-def evaluate(model, filenames_list, features_path, distances_path):
+def evaluate(model, filenames_list, features_path, distances_path, coords_path):
     """
     Finds and outputs mae and ssim for a trained model.
     :param model: model to assess
     :param filenames_list: list of protein filenames to assess
     :param features_path: path to features
     :param distances_path: path to distances
+    :param coords_path: path to coordinates
     :return:
     """
     avg_mae = 0
     avg_ssim = 0
+    avg_mse = 0
     count = 0
 
     mae = tf.keras.losses.MeanAbsoluteError()
+    mse = tf.keras.losses.MeanSquaredError()
 
     for filename in filenames_list:
         count += 1
@@ -52,9 +56,17 @@ def evaluate(model, filenames_list, features_path, distances_path):
 
         nodes, edges, mask, l = get_nodes_and_edges(filename, [features_path], 27, 4, distances_path)
         distance = tf.convert_to_tensor(np.load(distances_path + filename + '-ca.npy', allow_pickle=True))
+        true_coords = tf.convert_to_tensor(np.load(coords_path + filename + ".npy", allow_pickle=True),
+                                           dtype=tf.float32)
 
         # feed forward into model
         coord = model(nodes, edges, mask=mask)
+
+        # re-orient coordinates of output from model
+        oriented_coords = orient_coords(coord, true_coords)
+
+        # compute mse between oriented and true coordinates
+        avg_mse += tf.reduce_mean(mse(oriented_coords, true_coords))
 
         # convert to predicted distances
         coord = tf.repeat(coord, repeats=coord.shape[1], axis=0)
@@ -75,9 +87,46 @@ def evaluate(model, filenames_list, features_path, distances_path):
 
     avg_mae /= len(filenames_list)
     avg_ssim /= len(filenames_list)
+    avg_mse /= len(filenames_list)
 
     print("MAE:", avg_mae)
     print("Avg SSIM:", avg_ssim)
+
+
+def visualise_output(model, filename, features_path, distances_path, coords_path):
+    """
+    Visualises a single output from a given PSP model corresponding to the given filename's protein.
+    :param model: psp model to use
+    :param filename: filename of given protein
+    :param features_path: path to features
+    :param distances_path: path to distances
+    :param coords_path: path to coordinates
+    :return:
+    """
+    nodes, edges, mask, l = get_nodes_and_edges(filename, [features_path], 27, 4, distances_path)
+    distance = tf.convert_to_tensor(np.load(distances_path + filename + '-ca.npy', allow_pickle=True))
+    true_coords = tf.convert_to_tensor(np.load(coords_path + filename + ".npy", allow_pickle=True),
+                                       dtype=tf.float32)
+
+    # feed forward into model
+    coord = model(nodes, edges, mask=mask)
+
+    # re-orient coordinates of output from model
+    oriented_coords = orient_coords(coord, true_coords)
+
+    # convert oriented and predicted coords to numpy arrays
+    oriented_np = oriented_coords.reshape([-1, 3]).numpy()
+    actual_np = true_coords.reshape([-1, 3]).numpy()
+
+    # plot coordinates
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_subplot(projection='3d')
+
+    ax.scatter(actual_np[:, 0], actual_np[:, 1], actual_np[:, 2], c='b', label="actual")
+    ax.scatter(oriented_np[:, 0], oriented_np[:, 1], oriented_np[:, 2], c='r', label="predicted")
+
+    ax.legend()
+    plt.show()
 
 
 def main():
@@ -91,8 +140,10 @@ def main():
 
     deepcov_features_path = DATA_PATH + '/data/deepcov/features/'
     deepcov_distances_path = DATA_PATH + '/data/deepcov/ca_distance/'
+    deepcov_coords_path = DATA_PATH + 'data/deepcov/ca_coords'
     psicov_features_path = DATA_PATH + '/data/psicov/features/'
     psicov_distances_path = DATA_PATH + '/data/psicov/ca_distance/'
+    psicov_coords_path = DATA_PATH + '/data/psicov/ca_coords/'
 
     lst = os.listdir(deepcov_features_path) + os.listdir(psicov_features_path)
     lst.sort()
@@ -114,9 +165,9 @@ def main():
 
     model.summary()
 
-    evaluate(model, lstval, deepcov_features_path, deepcov_distances_path)
-    evaluate(model, lst_test, psicov_features_path, psicov_distances_path)
-    evaluate(model, lsttrain, deepcov_features_path, deepcov_distances_path)
+    evaluate(model, lstval, deepcov_features_path, deepcov_distances_path, deepcov_coords_path)
+    evaluate(model, lst_test, psicov_features_path, psicov_distances_path, psicov_coords_path)
+    evaluate(model, lsttrain, deepcov_features_path, deepcov_distances_path, deepcov_coords_path)
 
 
 if __name__ == "__main__":
