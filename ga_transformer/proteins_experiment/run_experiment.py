@@ -6,8 +6,6 @@ blocks.
 import tensorflow as tf
 import numpy as np
 from sklearn.model_selection import train_test_split
-import time
-from layers.graph_transformer import GraphTransformer
 from proteins_model import cga_transformer_model, mlp_model
 
 import pickle
@@ -210,15 +208,21 @@ def main():
     node_n = 27
     edge_n = 4
 
-    model = cga_transformer_model(num_blocks=1, num_edge_layers=edge_n, num_features=node_n)
+    model = cga_transformer_model(num_blocks=2, num_edge_layers=edge_n, num_features=node_n)
     # model = mlp_model(num_edge_layers=edge_n, num_features=27)
 
     train_feat_paths = [deepcov_features_path]
     test_feat_paths = [psicov_features_path]
 
-    optimizer = tf.keras.optimizers.Adam(learning_rate=2e-3)
+    initial_learning_rate = 1e-3
+    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate,
+        decay_steps=1000,
+        decay_rate=0.98,
+        staircase=True)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
 
-    early_stopper = EarlyStopper(patience=4, min_delta=0.1)
+    # early_stopper = EarlyStopper(patience=15, min_delta=0.1)
     stopflag = 0
 
     lsttrain, lstval = train_test_split(lst_train, test_size=0.20, random_state=42)
@@ -239,6 +243,7 @@ def main():
 
     for i in range(i_in, epochs):
         print('****')
+        print("epoch {}/{}".format(i, epochs))
 
         # reshuffle before each epoch
         np.random.shuffle(lsttrain)
@@ -302,7 +307,7 @@ def main():
 
             del nodes_batch, edges_batch, mask_batch, coords_batch, predicted_coords, oriented_coords
 
-            print("Loss: ", batch_loss)
+            # print("Loss: ", batch_loss)
 
             optimizer.apply_gradients(zip(grads, model.trainable_weights))
             total_loss += batch_loss
@@ -343,9 +348,9 @@ def main():
         print("training loss:", final_loss)
         print("....")
 
-        if early_stopper.early_stop(tot_val_loss / len(lstval)):
-            stopflag = 1
-            break
+        # if early_stopper.early_stop(tot_val_loss / len(lstval)):
+        #     stopflag = 1
+        #     break
 
         tot_val_loss = 0
         total_loss = 0
@@ -356,7 +361,7 @@ def main():
         if stopflag == 1:
             break
 
-    save_model("test", model)
+    save_model("psp_cgatr_2_block_new_schedule", model)
 
 
 if __name__ == "__main__":
